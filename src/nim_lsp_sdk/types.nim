@@ -1,4 +1,6 @@
-import std/[uri, options, json, tables]
+import std/[options, json, tables]
+
+import utils
 
 type
   ErrorCode* = enum
@@ -21,7 +23,7 @@ type
   ChangeAnnotationIdentifier = string
   Message* = ref object of RootObj
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#message)
-    jsonrpc*: string
+    jsonrpc*: string = "2.0"
 
   RequestMessage* = ref object of Message
     ## Request from client to server
@@ -80,20 +82,20 @@ type
     start*: Position
     `end`*: Position
 
-  TextDocumentItem = object
+  TextDocumentItem* = object
     ## Specifies a document. This is used for transferring a file to the server
     ##
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem)
-    uri: URI
-    languageId: string
-    version: int
-    text: string
+    uri*: DocumentURI
+    languageId*: string
+    version*: int
+    text*: string
 
   TextDocumentIdentifier* = ref object of RootObj
     ## Used to refer to a document
     ##
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentIdentifier)
-    uri*: URI
+    uri*: DocumentURI
 
   VersionedTextDocumentIdentifier* = ref object of TextDocumentIdentifier
     ## Used to refer to a specific version of a document
@@ -108,12 +110,12 @@ type
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#optionalVersionedTextDocumentIdentifier)
     version: Option[int]
 
-  TextDocumentPositionParams = object
+  TextDocumentPositionParams* = object
     ## Selects a position inside a doucment
     ##
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentPositionParams)
-    textDocument:TextDocumentIdentifier
-    position: Position
+    textDocument*: TextDocumentIdentifier
+    position*: Position
 
   DocumentFilter* = object
     ## .. Info:: At least one option must be selected
@@ -157,15 +159,15 @@ type
     ## Location inside a file
     ##
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#location)
-    uri: URI
-    range: Range
+    uri*: DocumentURI
+    range*: Range
 
   LocationLink* = object
     ## Link between two locations.
     ##
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#locationLink)
     originSelectionRange*: Option[Range]
-    targetUri*: URI
+    targetUri*: DocumentURI
     targetRange*: Range
     targetSelectionRange*: Range
 
@@ -195,7 +197,7 @@ type
 
   CodeDescription* = object
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeDescription)
-    href: URI
+    href: DocumentURI
 
   Diagnostic* = object
     ## Like a warning or error in the document
@@ -336,20 +338,6 @@ type
     name*: string
     version*: Option[string]
 
-  InitializeParams* = ref object of WorkDoneProgressParams
-    ## Initial message sent by client
-    ##
-    ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#initializeParams)
-    processId*: Option[int]
-    clientInfo*: Option[ClientInfo]
-    locale*: Option[string]
-    rootPath*: Option[string]
-    rootUri*: Option[DocumentUri]
-    initializationOptions*: Option[JsonNode]
-    capabilities*: ClientCapabilities
-    trace*: Option[TraceValue]
-    workspaceFolders*: Option[seq[WorkspaceFolder]]
-
   ServerInfo* = object
     name*: string
     version*: Option[string]
@@ -359,14 +347,21 @@ type
     serverInfo*: ServerInfo
 
   WorkspaceFolder* = object
-    uri*: URI
+    uri*: DocumentURI
     name*: string
+
+  TextDocumentContentChangeEvent* = object
+    ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentContentChangeEvent)
+    case incremental*: bool
+    of true:
+      range*: Range
+    else: discard
+    text*: string
 
   ServerCapabilities* = object
   ClientCapabilities* = object
 
-  PublishDiagnosticsParams* = object
-    ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#publishDiagnosticsParams)
-    uri*: DocumentUri
-    version*: Option[int]
-    diagnostics*: seq[Diagnostic]
+type
+  ServerError* = object of CatchableError
+    code*: ErrorCode
+

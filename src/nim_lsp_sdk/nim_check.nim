@@ -10,10 +10,6 @@ proc ignoreErrors(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) 
   # TODO: Don't ignore errors
   discard
 
-proc test() {.deprecated.} =
-  discard
-
-test()
 
 proc parseFile*(x: DocumentUri): (FileIndex, PNode) =
   ## Parses a document. This is only lexcial and is done
@@ -24,6 +20,7 @@ proc parseFile*(x: DocumentUri): (FileIndex, PNode) =
   if setupParser(p, fileIdx, newIdentCache(), conf):
     p.lex.errorHandler = ignoreErrors
     result = (fileIdx, parseAll(p))
+    closeParser(p)
   else:
     raise (ref CatchableError)(msg: "Failed to setup parser")
 
@@ -50,16 +47,18 @@ proc findNode(p: PNode, line, col: uint, careAbout: FileIndex): Option[Range] =
 type
   SymbolUsage* = object
     ## Information storing symbol usage
-    def*: Position
-    usages*: seq[Position]
+    def*: (string, Position)
+    usages*: seq[(string, Position)]
 
-proc findUsages(file: string, pos: Position): Option[SymbolUsage] =
+proc findUsages*(file: string, pos: Position): Option[SymbolUsage] =
   ## Uses --defusages to find symbol usage/defintion
   ## Uses IC so isn't braindead slow which is cool, but zero clue
   ## what stability is like lol
   # Use refc to get around https://github.com/nim-lang/Nim/issues/22205
-  let (outp, status) = execCmdEx(fmt"nim check --ic:on --mm:refc {ourOptions} --defusages:{file},{pos.line + 1},{pos.character} {file}")
+  let (outp, status) = execCmdEx(fmt"nim check --ic:on --mm:refc {ourOptions} --defusages:{file},{pos.line + 1},{pos.character + 1} {file}")
+  echo outp
   if status == QuitFailure: return
+  debug(outp)
   var s = SymbolUsage()
   for lineStr in outp.splitLines():
     var
@@ -68,17 +67,17 @@ proc findUsages(file: string, pos: Position): Option[SymbolUsage] =
       col: int
     # TODO: Fix navigator.nim so that the RHS of identDefs isn't considered a decl
     if lineStr.scanf("def$s$+($i, $i)", file, line, col):
-      s.def = initPos(line, col)
+      s.def = (file, initPos(line, col))
     elif lineStr.scanf("usage$s$+($i, $i)", file, line, col):
-      s.usages &= initPos(line, col)
+      s.usages &= (file, initPos(line, col))
   return some s
 
 proc getErrors*(x: DocumentUri): seq[Diagnostic] =
   ## Returns everything returned by nim check as diagnostics
   debug(fmt"Checking {x}: nim check {ourOptions} {x}")
-  let (outp, _) = execCmdEx(fmt"nim check {ourOptions} {x}")
+  let (outp, statusCode) = execCmdEx(fmt"nim check {ourOptions} {x}")
   let (fIdx, root) = parseFile(x)
-  debug(outp)
+  debug(outp, statusCode)
   echo outp
   for error in outp.split('\31'):
     echo error
@@ -99,5 +98,6 @@ proc getErrors*(x: DocumentUri): seq[Diagnostic] =
           message: msg
         )
 
+
 when isMainModule:
-  echo findUsages("/home/jake/Documents/projects/nim-lsp-sdk/tests/test1.nim", initPos(13, 3))
+  echo findUsages("/home/jake/Documents/projects/nim-lsp-sdk/tests/test1.nim", initPos(13, 1))
