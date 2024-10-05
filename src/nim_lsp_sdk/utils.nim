@@ -1,5 +1,7 @@
 import std/[macrocache, macros, strformat]
 
+import threading/[rwlock]
+
 
 const rpcMethods = CacheTable"lsp.rpcMethods"
   ## Mapping of method name to param/return type.
@@ -35,13 +37,18 @@ macro getMethodParam*(name: static[string]): untyped =
 macro getMethodReturn*(name: static[string]): untyped =
   return getInfo(name)[1]
 
+type
+  ShouldCloseCheck* = proc (): bool
+    ## Proc to check if a request should close
+
 macro getMethodHandler*(name: static[string]): untyped =
   let info = getInfo(name)
   return nnkProcTy.newTree(
     nnkFormalParams.newTree(
       info[1],
-      nnkIdentDefs.newTree(ident"server", nnkVarTy.newTree(ident"Server"), newEmptyNode()),
+      nnkIdentDefs.newTree(ident"handle", ident"RequestHandle", newEmptyNode()),
       nnkIdentDefs.newTree(ident"param", info[0], newEmptyNode()),
     ),
-    newEmptyNode()
+    nnkPragma.newTree(ident"gcsafe")
   )
+

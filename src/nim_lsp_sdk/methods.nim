@@ -7,3 +7,7 @@ const
   changedNotification* = "textDocument/didChange"
   openedNotification* = "textDocument/didOpen"
   symbolDefinition* = "textDocument/definition"
+  logMessage* = "window/logMessage"
+    ## Logs a message to the client
+  codeAction* = "textDocument/codeAction"
+    ## Client is requesting actions it can take

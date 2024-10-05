@@ -252,7 +252,7 @@ type
   RenameFileOptions* = object
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#renameFileOptions)
     overwrite: Option[bool]
-    ignoreIfExists: Option[bool]
+    ignoreIfExists*: Option[bool]
 
   RenameFile* = ref object of RootEditObj
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#renameFile)
@@ -358,7 +358,27 @@ type
     else: discard
     text*: string
 
+  CodeActionKind* = object
+    ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeActionKind)
+    Empty = ""
+    QuickFix = "quickfix"
+    Refactor = "refactor"
+    Extract = "refactor.extract"
+    Inline = "refactor.inline"
+    Rewrite = "refactor.rewrite"
+    Source = "source"
+    OrganiseImports = "source.organizeImports"
+    SourceFixAll = "source.fixAll"
+
+  WorkDoneProgressOptions = ref object of RootObj
+    workDoneProgress: bool
+
+
+  CodeActionOptions* = ref object of WorkDoneProgressOptions
+    codeActionKinds*: seq[CodeActionKind]
+    resolveProvider*: bool
   ServerCapabilities* = object
+    codeActionProvider*: bool
   ClientCapabilities* = object
 
 type

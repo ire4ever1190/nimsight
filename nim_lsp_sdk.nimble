@@ -11,3 +11,4 @@ bin = @["nim_lsp_sdk"]
 # Dependencies
 
 requires "nim >= 2.1.99"
+requires "threading#c69e13a"

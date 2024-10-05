@@ -6,32 +6,44 @@ import nim_lsp_sdk/[nim_check, server, protocol]
 
 import nim_lsp_sdk/[types, params, methods, utils]
 
-var fileLog = newFileLogger("/tmp/errors.log")
-addHandler(fileLog)
+# var fileLog = newFileLogger("/tmp/errors.log")
+# addHandler(fileLog)
 
 using s: var Server
 
-proc checkFile(params: DidOpenTextDocumentParams | DidChangeTextDocumentParams) =
+proc checkFile(handle: RequestHandle, params: DidOpenTextDocumentParams | DidChangeTextDocumentParams) {.gcsafe.} =
   ## Publishes `nim check` dianostics
   let doc = params.textDocument
   sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
     uri: doc.uri,
     version: some doc.version,
-    diagnostics: getErrors(doc.uri.replace("file://", ""))
+    diagnostics: handle.getErrors(doc.uri.replace("file://", ""))
   ))
+
 import nim_lsp_sdk/utils
 
+
+# discard RenameFileOptions(
+#   overwrite: some true,
+#   ignoreIfExists: some false
+# )
 
 var lsp = initServer("CTN")
 
 
 # s
-lsp.listen(changedNotification) do (s: var Server, params: DidChangeTextDocumentParams):
-  checkFile(params)
-lsp.listen(openedNotification) do (s: var Server, params: DidOpenTextDocumentParams):
-  checkFile(params)
-lsp.listen(symbolDefinition) do (s: var Server, params: TextDocumentPositionParams) -> Option[Location]:
-  let usages = findUsages(params.textDocument.uri.replace("file://"), params.position)
+lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
+  h.checkFile(params)
+lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
+  h.checkFile(params)
+
+lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction]:
+  # Literal braindead implementation. Rerun the checks and try to match it up.
+  # Need to do something like
+  let errors = h.getErrors(params.textDocument.uri.replace("file://", ""))
+
+lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionParams) -> Option[Location] {.gcsafe.}:
+  let usages = h.findUsages(params.textDocument.uri.replace("file://"), params.position)
   debug($usages)
   if usages.isSome():
     let usages = usages.unsafeGet()
