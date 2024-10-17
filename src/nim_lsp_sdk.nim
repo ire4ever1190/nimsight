@@ -67,4 +67,8 @@ lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionP
       )
     )
 
+
+lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) -> seq[DocumentSymbol]:
+  return params.textDocument.parseFile().outLineDocument()
+
 lsp.poll()

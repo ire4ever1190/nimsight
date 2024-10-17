@@ -44,6 +44,17 @@ type
     of Unknown, AmbigiousIdentifier:
       possibleSymbols*: seq[string]
 
+proc initPos(x: TLineInfo): Position =
+  return Position(line: uint x.line - 1, character: uint x.col)
+
+proc initPos(line: SomeInteger, col: SomeInteger): Position =
+  ## Creates a position from a line/col that is 1 indexed
+  return Position(line: uint line - 1, character: uint col - 1)
+
+func initRange(p: PNode): Range =
+  ## Creates a range from a node
+  Range(start: p.info.initPos(), `end`: p.endInfo.initPos())
+
 func `$`(e: ParsedError): string =
   result &= e.name & "\n"
   case e.kind
@@ -59,7 +70,6 @@ proc ignoreErrors(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) 
   # TODO: Don't ignore errors
   discard
 
-
 proc parseFile*(x: DocumentUri): (FileIndex, PNode) {.gcsafe.} =
   ## Parses a document. This is only lexcial and is done
   ## to get start/end ranges for errors.
@@ -73,6 +83,93 @@ proc parseFile*(x: DocumentUri): (FileIndex, PNode) {.gcsafe.} =
       closeParser(p)
     else:
       raise (ref CatchableError)(msg: "Failed to setup parser")
+
+proc parseFile*(x: TextDocumentIdentifier): PNode =
+  x.uri.replace("file://", "").parseFile()[1]
+
+
+func toSymbolKind(x: PNode): SymbolKind =
+  ## Converts from Nim NodeKind into LSP SymbolKind
+  case x.kind
+  of nkEnumFieldDef:
+    EnumMember
+  of nkFuncDef, nkProcDef:
+    Function
+  of nkMethodDef:
+    Method
+  of nkTypeDef:
+    case x[2].kind:
+    of nkTypeClassTy:
+      Interface
+    of nkRefTy, nkObjectTy: # Not correct! nkRef could just be a type alias not an obkect
+      Object
+    of nkEnumTy:
+      Enum
+    else:
+      TypeParameter
+  else:
+    # Likely not good enough
+    Variable
+
+proc nameNode(x: PNode): PNode =
+  ## Returns the node that stores the name
+  case x.kind
+  of nkIdent:
+    x
+  of nkPostFix:
+    x[1].nameNode
+  of nkProcDef, nkFuncDef, nkMethodDef, nkMacroDef, nkTypeDef, nkAccQuoted, nkIdentDefs:
+    x[namePos].nameNode
+  else:
+    raise (ref ValueError)(msg: fmt"Can't find name for {x.kind}")
+
+proc name(x: PNode): string =
+  ## Returns the name of a node.
+  ## Handles unpacking postfix etc
+  return x.nameNode.ident.s
+
+proc toDocumentSymbol(x: PNode, kind = x.toSymbolKind()): DocumentSymbol =
+  DocumentSymbol(
+    name: x.name,
+    kind: kind,
+    range: x.initRange(),
+    selectionRange: x.nameNode.initRange()
+  )
+
+
+# TODO: Clean up this whole process
+# Maybe make a generic if kind: body: recurse children thing?
+proc collectTypeFields(x: PNode, symbols: var seq[DocumentSymbol]) =
+  if x.kind == nkIdentDefs:
+    symbols &= x.toDocumentSymbol(kind=Property)
+  else:
+    for child in x:
+      child.collectTypeFields(symbols)
+
+
+proc collectDocumentSymbols(x: PNode, symbols: var seq[DocumentSymbol]) =
+  ## Converts a node into a [DocumentSymbol].
+  ## `isA` can be used to mark that all symbols are of a certain kind. Useful for context
+  let kind = x.toSymbolKind()
+  if x.kind in {nkProcDef, nkFuncDef, nkMethodDef, nkMacroDef, nkTypeDef}:
+    var symbol = x.toDocumentSymbol()
+    # For objects, we also want to append the children
+    if kind == Enum:
+      x[2].collectDocumentSymbols(symbol.children)
+      for member in symbol.children:
+        member.kind = EnumMember
+    elif kind == Object:
+      x[2].collectTypeFields(symbol.children)
+    symbols &= symbol
+  else:
+    for child in x:
+      child.collectDocumentSymbols(symbols)
+
+
+proc outlineDocument*(x: PNode): seq[DocumentSymbol] =
+  ## Creates an outline of symbols in the document.
+  ## TODO: Check if the client supports heirarchy or not
+  x.collectDocumentSymbols(result)
 
 proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
   ## Returns possibly fixes for an error
@@ -89,21 +186,13 @@ proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
           )
       )
   else: discard
-proc initPos(x: TLineInfo): Position =
-  return Position(line: uint x.line - 1, character: uint x.col)
-
-proc initPos(line: SomeInteger, col: SomeInteger): Position =
-  ## Creates a position from a line/col that is 1 indexed
-  return Position(line: uint line - 1, character: uint col - 1)
 
 proc findNode(p: PNode, line, col: uint, careAbout: FileIndex): Option[Range] =
   ## Finds the node at (line, col) and returns the range that corresponds to it
   let info = p.info
   if info.line == line and info.col.uint == col and info.fileIndex == careAbout:
-    return some(Range(
-      start: initPos(info),
-      `end`: initPos(p.endInfo)
-    ))
+    return p.initRange().some()
+
   for child in p:
     let res = findNode(child, line, col, careAbout)
     if res.isSome():

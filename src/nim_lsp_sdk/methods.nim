@@ -11,3 +11,4 @@ const
     ## Logs a message to the client
   codeAction* = "textDocument/codeAction"
     ## Client is requesting actions it can take
+  documentSymbols* = "textDocument/documentSymbol"
