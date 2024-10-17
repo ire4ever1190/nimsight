@@ -1,6 +1,6 @@
 ## Utils for working with Nim check
-import std/[osproc, strformat, logging, strscans, strutils, options, sugar, jsonutils, os, streams]
-import types, hooks, server
+import std/[osproc, strformat, logging, strscans, strutils, options, sugar, jsonutils, os, streams, tables]
+import types, hooks, server, params
 
 import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos]
 
@@ -31,6 +31,10 @@ type
     ## Wish the compiler had a structured errors mode
     name*: string
       ## The name given in the first line
+    range*: Range
+      ## Start/end position that the error corresponds to
+    severity*: DiagnosticSeverity
+    file*: string
     case kind*: ErrorKind
     of Any:
       fullText*: string
@@ -70,6 +74,21 @@ proc parseFile*(x: DocumentUri): (FileIndex, PNode) {.gcsafe.} =
     else:
       raise (ref CatchableError)(msg: "Failed to setup parser")
 
+proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
+  ## Returns possibly fixes for an error
+  case e.kind
+  of Unknown:
+    for option in e.possibleSymbols:
+      result &= CodeAction(
+        title: option,
+        diagnostics: some @[diagnotic],
+        edit: some WorkspaceEdit(
+            changes: some toTable({
+              "file://" & e.file: @[TextEdit(range: e.range, newText: option)]
+            })
+          )
+      )
+  else: discard
 proc initPos(x: TLineInfo): Position =
   return Position(line: uint x.line - 1, character: uint x.col)
 
@@ -116,7 +135,6 @@ proc findUsages*(handle: RequestHandle, file: string, pos: Position): Option[Sym
   let (outp, status) = handle.execProcess("nim", @["check", "--ic:on", "--mm:refc", fmt"--defusages:{file},{pos.line + 1},{pos.character + 1}"] & ourOptions & file)
   echo outp
   if status == QuitFailure: return
-  debug(outp)
   var s = SymbolUsage()
   for lineStr in outp.splitLines():
     var
@@ -130,16 +148,11 @@ proc findUsages*(handle: RequestHandle, file: string, pos: Position): Option[Sym
       s.usages &= (file, initPos(line, col))
   return some s
 
-
-proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
-  ## Returns everything returned by nim check as diagnostics
-  debug(fmt"Checking {x}: nim check {ourOptions} {x}")
+proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
+  ## Parses errors from `nim check` into a more structured form
   let (outp, statusCode) = handle.execProcess("nim", @["check"] & ourOptions & x)
   let (fIdx, root) = parseFile(x)
-  debug(outp, statusCode)
-  echo outp
   for error in outp.split('\31'):
-    echo error
     let lines = error.splitLines()
     for i in 0..<lines.len:
       let (ok, file, line, col, lvl, msg) = lines[i].scanTuple("$+($i, $i) $+: $+")
@@ -180,13 +193,18 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe
           err = ParsedError(kind: Any, fullText: fullText)
         # And add the diagnotic
         err.name = msg
-        result &= Diagnostic(
-          range: range.unsafeGet(),
-          severity: sev,
-          message: $err,
-          data: some err.toJson()
-        )
+        err.range = range.unsafeGet()
+        err.severity = sev.unsafeGet()
+        err.file = file
+        result &= err
 
+proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
+  for err in handle.getErrors(x):
+     result &= Diagnostic(
+        range: err.range,
+        severity: some err.severity,
+        message: $err,
+      )
 
 when isMainModule:
   echo findUsages("/home/jake/Documents/projects/nim-lsp-sdk/tests/test1.nim", initPos(13, 1))

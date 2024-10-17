@@ -14,11 +14,15 @@ using s: var Server
 proc checkFile(handle: RequestHandle, params: DidOpenTextDocumentParams | DidChangeTextDocumentParams) {.gcsafe.} =
   ## Publishes `nim check` dianostics
   let doc = params.textDocument
+  debug "Checking: ", doc.uri
+  let diagnostics = handle.getDiagnostics(doc.uri.replace("file://", ""))
+  debug "Found: ", diagnostics.len
   sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
     uri: doc.uri,
     version: some doc.version,
-    diagnostics: handle.getErrors(doc.uri.replace("file://", ""))
+    diagnostics: diagnostics
   ))
+
 
 import nim_lsp_sdk/utils
 
@@ -41,6 +45,14 @@ lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[Co
   # Literal braindead implementation. Rerun the checks and try to match it up.
   # Need to do something like
   let errors = h.getErrors(params.textDocument.uri.replace("file://", ""))
+  # First we find the error that matches. Since they are parsed the same we should
+  # be able to line them up exactly
+  for err in errors:
+    for diag in params.context.diagnostics:
+      if err.range == diag.range:
+        result &= err.createFix(diag)
+        debug("Found error")
+  debug result.len
 
 lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionParams) -> Option[Location] {.gcsafe.}:
   let usages = h.findUsages(params.textDocument.uri.replace("file://"), params.position)
