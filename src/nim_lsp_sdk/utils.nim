@@ -52,3 +52,26 @@ macro getMethodHandler*(name: static[string]): untyped =
     nnkPragma.newTree(ident"gcsafe")
   )
 
+macro mixed*(objs: varargs[typed]): typedesc =
+  ## Simple mixin macro that allows for multi inheritance by
+  ## creating a temp type that joins all the fields.
+  ## Currently doesn't support fancy things like variant objects.
+  ## Objects passed in should not inherit from the root obj
+  var recordList = nnkRecList.newTree()
+  # Get the fields from each object
+  for obj in objs:
+    for record in obj.getTypeImpl()[1].getImpl()[2][2]:
+      recordList &= record
+
+  let name = nskType.genSym("Mixed object")
+  result = nnkTypeSection.newTree(nnkTypeDef.newTree(
+    name,
+    newEmptyNode(),
+    nnkObjectTy.newTree(
+      newEmptyNode(),
+      nnkOfInherit.newTree(ident"RootObj"),
+      recordList
+    )
+  ))
+  result = newStmtList(result, name)
+

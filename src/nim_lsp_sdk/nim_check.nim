@@ -88,6 +88,29 @@ proc parseFile*(x: TextDocumentIdentifier): PNode =
   x.uri.replace("file://", "").parseFile()[1]
 
 
+type
+  State* = enum
+    Any
+    InObject
+    InEnum
+    InRoutine
+
+
+proc exploreAST*[T](x: PNode, result: var seq[T],
+                   handler: proc (x: PNode, state: State, result: var seq[T]),
+                   state = State.Any) =
+  ## Helper function to explore the AST. Keeps track of state of what context it is in
+  ## Calls the handler and each node.
+  handler(x, state, result)
+  let newState = case x.kind
+                 of nkObjectTy: InObject
+                 of nkEnum: InEnum
+                 of routineDefs: InRoutine
+                 else: state
+  for child in x:
+    exploreAST(child, result, state)
+
+
 func toSymbolKind(x: PNode): SymbolKind =
   ## Converts from Nim NodeKind into LSP SymbolKind
   case x.kind
@@ -138,7 +161,7 @@ proc toDocumentSymbol(x: PNode, kind = x.toSymbolKind()): DocumentSymbol =
 
 
 # TODO: Clean up this whole process
-# Maybe make a generic if kind: body: recurse children thing?
+# Maybe make a genxeric if kind: body: recurse children thing?
 proc collectTypeFields(x: PNode, symbols: var seq[DocumentSymbol]) =
   if x.kind == nkIdentDefs:
     symbols &= x.toDocumentSymbol(kind=Property)
@@ -187,6 +210,21 @@ proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
       )
   else: discard
 
+
+func contains*(r: Range, p: Position): bool =
+  ## Returns true if a position is within a range
+  # For start/end, we need to check columns
+  if p.line == r.start.line:
+    return p.character >= r.start.character
+  if p.line == r.`end`.line:
+    return p.character <= r.`end`.character
+  # For everything else we can just check that its in between
+  return p.line in r.start.line .. r.`end`.line
+
+func contains*(r: Range, p: PNode): bool =
+  ## Returns true if a node is within a range
+  p.info.initPos in r
+
 proc findNode(p: PNode, line, col: uint, careAbout: FileIndex): Option[Range] =
   ## Finds the node at (line, col) and returns the range that corresponds to it
   let info = p.info
@@ -225,6 +263,7 @@ proc findUsages*(handle: RequestHandle, file: string, pos: Position): Option[Sym
   echo outp
   if status == QuitFailure: return
   var s = SymbolUsage()
+  debug(outp)
   for lineStr in outp.splitLines():
     var
       file: string

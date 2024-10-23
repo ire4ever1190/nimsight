@@ -21,9 +21,21 @@ type
     UnknownErrorCode =  -32001
 
   ChangeAnnotationIdentifier = string
+
   Message* = ref object of RootObj
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#message)
     jsonrpc*: string = "2.0"
+
+  PartialResultToken* = JsonNode
+    ## Field used to indicate whether a partial result can be used
+
+  SupportsPartialResults* = concept
+    ## Type supports partial results
+    proc partialResultToken(): Option[PartialResultToken]
+
+  PartialResultParams* = object
+    ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#partialResultParams)
+    partialResultToken: Option[PartialResultToken]
 
   RequestMessage* = ref object of Message
     ## Request from client to server

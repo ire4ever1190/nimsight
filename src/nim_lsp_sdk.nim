@@ -2,6 +2,7 @@
 import std/[strscans, strutils, syncio, json, jsonutils, options, strformat, tables]
 import std/macros
 import std/logging
+import "$nim"/compiler/ast
 import nim_lsp_sdk/[nim_check, server, protocol]
 
 import nim_lsp_sdk/[types, params, methods, utils]
@@ -16,7 +17,6 @@ proc checkFile(handle: RequestHandle, params: DidOpenTextDocumentParams | DidCha
   let doc = params.textDocument
   debug "Checking: ", doc.uri
   let diagnostics = handle.getDiagnostics(doc.uri.replace("file://", ""))
-  debug "Found: ", diagnostics.len
   sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
     uri: doc.uri,
     version: some doc.version,
@@ -41,7 +41,12 @@ lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocum
 lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
   h.checkFile(params)
 
+
 lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction]:
+  # Custom actions
+  let file = params.textDocument.parseFile()
+
+  # Find actions for errors
   # Literal braindead implementation. Rerun the checks and try to match it up.
   # Need to do something like
   let errors = h.getErrors(params.textDocument.uri.replace("file://", ""))
