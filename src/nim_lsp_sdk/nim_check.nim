@@ -251,6 +251,8 @@ proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string]): t
     sleep 10
   if not handle.isRunning():
     # TODO: Let the caller handle it, for now we play it simple
+    process.kill()
+    discard process.waitForExit()
     raise (ref ServerError)(code: RequestCancelled)
   return (process.outputStream().readAll(), process.peekExitCode())
 
