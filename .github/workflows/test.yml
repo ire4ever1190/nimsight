@@ -1,0 +1,31 @@
+on:
+  push:
+    branches:
+      - "master"
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        nim: ['devel'] # Test stable at a later date
+    name: Nim ${{ matrix.nim }} test
+    steps:
+
+    - name: Setup Nim Enviroment
+      uses: actions/checkout@v3
+
+    - uses: jiro4989/setup-nim-action@v2
+      with:
+          use-nightlies: true
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          nim-version: ${{ matrix.nim }}
+
+      name: Install nim dependencies
+      run: nimble update && nimble build
+
+    - name: Run Tests
+      run: nimble test
