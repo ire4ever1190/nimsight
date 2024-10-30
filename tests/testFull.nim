@@ -30,7 +30,7 @@ proc runTest(inputFile: string): string =
   )
   defer: p.close()
   # Wait for it to exit, then read the output
-  assert p.waitForExit(3000) == QuitSuccess
+  check p.waitForExit(3000) == QuitSuccess
   result = p.outputStream().readAll()
 
 proc parseCommands(x: string): seq[string] =
