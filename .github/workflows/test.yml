@@ -24,7 +24,10 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           nim-version: ${{ matrix.nim }}
 
-      name: Install nim dependencies
+    - name: Install NeoVim
+      run: sudo apt update && sudo apt install neovim
+
+    - name: Install Nim dependencies
       run: nimble update && nimble build
 
     - name: Run Tests
