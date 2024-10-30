@@ -78,7 +78,7 @@ macro nvimTest(body: untyped): string =
     # TODO: Better temp file naming
     tempBaseName = "/tmp/" & $body.lineInfoObj.line
     file = tempBaseName & ".nim"
-    commands = code.parseCommands().join("\n")
+    commands = (code.parseCommands() & ":q!").join("\n")
   # Can't remember if nimcheck performs IO or not
   if not defined(nimcheck):
     file.writeFile(code)
@@ -92,18 +92,18 @@ macro nvimTest(body: untyped): string =
 test "No errors on startup":
   let output = nvimTest:
     discard "Empty"
-    #> :q!
 
   check "RPC[Error]" notin output
+  check "error = " notin output
 
 test "Can get diagnostics":
   let output = nvimTest:
     {.warning: "Warning is shown".} #[
-    ^ :diag ]#
+    ^ :Diag ]#
     {.hint: "Hint is shown".} #[
-    ^ :diag ]#
+    ^ :Diag ]#
     {.error: "Error is shown.".} #[
-    ^ :diag ]#
+    ^ :Diag ]#
   check "Warning is shown" in output
   check "Hint is shown" in output
   check "Error is shown" in output
