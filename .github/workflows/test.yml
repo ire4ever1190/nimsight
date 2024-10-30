@@ -1,0 +1,38 @@
+on:
+  push:
+    branches:
+      - "master"
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        nim: ['devel'] # Test stable at a later date
+    name: Nim ${{ matrix.nim }} test
+    steps:
+
+    - name: Setup Nim Enviroment
+      uses: actions/checkout@v3
+
+    - uses: jiro4989/setup-nim-action@v2
+      with:
+          use-nightlies: true
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          nim-version: ${{ matrix.nim }}
+
+    - name: Install NeoVim
+      run: |
+        # Install from source so its the latest version
+        curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz
+        sudo tar -C /opt -xzf nvim-linux64.tar.gz
+        echo "/opt/nvim-linux64/bin" >> $GITHUB_PATH
+
+    - name: Install Nim dependencies
+      run: nimble update && nimble build
+
+    - name: Run Tests
+      run: nimble test
