@@ -24,14 +24,19 @@ proc readBlock(x: NimNode): string =
 proc runTest(inputFile: string): string =
   ## Runs a neovim test
   # Start the neovim process
+  let configFile = currentSourcePath.parentDir() / "config.lua"
   let p = startProcess(
-    "nvim", args=["nvim", "--clean", "--headless", "-u", "config.lua", inputFile],
+    "nvim", args=["nvim", "--clean", "--headless", "-u", $configFile, inputFile],
     options={poUsePath, poStdErrToStdOut}
   )
   defer: p.close()
   # Wait for it to exit, then read the output
-  check p.waitForExit(3000) == QuitSuccess
-  result = p.outputStream().readAll()
+  let
+    exitCode = p.waitForExit(10000)
+    output = p.outputStream().readAll()
+  checkpoint output
+  assert exitCode == QuitSuccess
+  result = output
 
 proc parseCommands(x: string): seq[string] =
   ## Parses all vim commands stored in the source
