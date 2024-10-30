@@ -1,4 +1,4 @@
-import std/[osproc, streams, os, unittest, macros, strutils]
+import std/[osproc, streams, os, unittest, macros, strutils, strformat, strscans]
 
 
 proc readBlock(x: NimNode): string =
@@ -40,25 +40,50 @@ proc runTest(inputFile: string): string =
 
 proc parseCommands(x: string): seq[string] =
   ## Parses all vim commands stored in the source
+  ##
   ## Commands can be stored inline by prefixing with `#>` e.g.
   ## ```
   ## #> :q
   ## ```
-  for line in x.splitLines:
+  ## Or point to a particular line, in this case the cursor will jump
+  ## to the position before calling the command
+  ## ```
+  ## # This will move the cursor to the first 'e' then call :idk
+  ## echo "hello" #[
+  ##        ^ :idk ]#
+  ## ```
+  var i = 0
+  let lines = x.splitLines()
+  while i < lines.len:
+    let line = lines[i]
     if line.startsWith("#> "):
       result &= line.replace("#> ", "")
+    elif line.strip().endsWith("#["):
+      i += 1
+      let
+        line = lines[i]
+        col = line.indentation()
+      result &= fmt":cal cursor({i}, {col})"
+      let (ok, command) = line.strip().scanTuple("^$+]#")
+      assert ok, line
+      result &= command.strip()
+    i += 1
 
 macro nvimTest(body: untyped): string =
   ## Writes the body to a temp file and then
   ## runs nvim on it. Returns the messages as a string
   # Write the code to a temp file to be read by the test
-  let code = body.readBlock()
-  # TODO: Better temp file naming
-  let tempBaseName = "/tmp/" & $body.lineInfoObj.line
-  let file = tempBaseName & ".nim"
-  file.writeFile(code)
-  # Extract the commands from the source
-  (tempBaseName & ".vim").writeFile(code.parseCommands().join("\n"))
+  let
+    code = body.readBlock()
+    # TODO: Better temp file naming
+    tempBaseName = "/tmp/" & $body.lineInfoObj.line
+    file = tempBaseName & ".nim"
+    commands = code.parseCommands().join("\n")
+  # Can't remember if nimcheck performs IO or not
+  if not defined(nimcheck):
+    file.writeFile(code)
+    # Extract the commands from the source
+    (tempBaseName & ".vim").writeFile(commands)
 
   result = quote do:
     runTest(`file`)
@@ -70,3 +95,15 @@ test "No errors on startup":
     #> :q!
 
   check "RPC[Error]" notin output
+
+test "Can get diagnostics":
+  let output = nvimTest:
+    {.warning: "Warning is shown".} #[
+    ^ :diag ]#
+    {.hint: "Hint is shown".} #[
+    ^ :diag ]#
+    {.error: "Error is shown.".} #[
+    ^ :diag ]#
+  check "Warning is shown" in output
+  check "Hint is shown" in output
+  check "Error is shown" in output
