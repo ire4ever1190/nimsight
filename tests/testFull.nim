@@ -24,7 +24,6 @@ proc readBlock(x: NimNode): string =
 proc runTest(inputFile: string): string =
   ## Runs a neovim test
   # Start the neovim process
-  echo "Running"
   let p = startProcess(
     "nvim", args=["nvim", "--clean", "--headless", "-u", "config.lua", inputFile],
     options={poUsePath, poStdErrToStdOut}
@@ -41,7 +40,6 @@ proc parseCommands(x: string): seq[string] =
   ## #> :q
   ## ```
   for line in x.splitLines:
-    echo line
     if line.startsWith("#> "):
       result &= line.replace("#> ", "")
 
