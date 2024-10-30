@@ -1,7 +1,7 @@
 -- Start the server
 vim.lsp.start({
   name = "Nim LSP Test",
-  cmd = {"nim_lsp_sdk"}
+  cmd = {"../nim_lsp_sdk"}
 })
 
 

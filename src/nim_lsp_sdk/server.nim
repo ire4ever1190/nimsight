@@ -70,7 +70,7 @@ proc listen*(server: var Server, event: static[string], handler: getMethodHandle
     ## Conversion of the JSON and catching any errors.
     ## TODO: Maybe use error return and then raises: []?
     let data = try:
-        x.jsonTo(ParamType, JOptions(allowMissingKeys: true))
+        x.jsonTo(ParamType, JOptions(allowMissingKeys: true, allowExtraKeys: true))
       except CatchableError as e:
         raise (ref ServerError)(code: InvalidParams, msg: e.msg)
     try:
