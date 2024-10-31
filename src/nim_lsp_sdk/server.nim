@@ -5,7 +5,7 @@ import utils, types, protocol, hooks, params, ./logging
 import threading/[channels, rwlock]
 
 type
-  Handler* = proc (handle: RequestHandle, x: JsonNode): JsonNode {.gcsafe.}
+  Handler* = proc (handle: RequestHandle, x: JsonNode): Option[JsonNode] {.gcsafe.}
     ## Handler for a method. Uses JsonNode to perform type elision,
     ## gets converted into approiate types inside
   Server* = object
@@ -66,7 +66,7 @@ proc listen*(server: var Server, event: static[string], handler: getMethodHandle
   type
     ParamType = getMethodParam(event)
     ReturnType = typeof(handler(RequestHandle(), ParamType()))
-  proc inner(handle: RequestHandle, x: JsonNode): JsonNode {.stacktrace: off, gcsafe.} =
+  proc inner(handle: RequestHandle, x: JsonNode): Option[JsonNode] {.stacktrace: off, gcsafe.} =
     ## Conversion of the JSON and catching any errors.
     ## TODO: Maybe use error return and then raises: []?
     let data = try:
@@ -77,10 +77,13 @@ proc listen*(server: var Server, event: static[string], handler: getMethodHandle
       when ReturnType is not void:
         let ret = handler(handle, data)
         {.gcsafe.}:
-          return ret.toJson()
+          return some ret.toJson()
+      elif event.isNotification:
+        handler(handle, data)
+        return none(JsonNode)
       else:
         handler(handle, data)
-        return newJNull()
+        return some newJNull()
     except CatchableError as e:
       raise (ref ServerError)(code: RequestFailed, msg: e.msg)
 
@@ -121,7 +124,9 @@ proc workerThread(server: ptr Server) {.thread.} =
         handler = server[].listeners[request.meth]
         handle = initHandle(id, server)
       try:
-        request.respond(handler(handle, request.params))
+        let returnVal = handler(handle, request.params)
+        if returnVal.isSome():
+          request.respond(returnVal.unsafeGet())
       except ServerError as e:
         request.respond(e[])
     else:

@@ -26,6 +26,9 @@ macro registerClientMessage*(name: static[string], param, returnType: typedesc,
   if isNotification:
     rpcNotifications[name] = newEmptyNode()
 
+proc isNotification*(name: static[string]): bool =
+  name in rpcNotifications
+
 proc getInfo*(name: string): NimNode =
   if name notin rpcMethods:
     error(fmt"{name} is not registered")
