@@ -40,12 +40,25 @@ config.on_init = function (client, results)
 end
 vim.lsp.start_client(config)
 
+function dump(o)
+   if type(o) == 'table' then
+      local s = '{ '
+      for k,v in pairs(o) do
+         if type(k) ~= 'number' then k = '"'..k..'"' end
+         s = s .. '['..k..'] = ' .. dump(v) .. ','
+      end
+      return s .. '} '
+   else
+      return tostring(o)
+   end
+end
+
 
 -- Just store the diagnostics, will will print them when asked
 diagnostics = {}
 vim.lsp.handlers["textDocument/publishDiagnostics"] = function (_, result, ctx, config)
+  print(dump(result.diagnostics))
   coroutine.resume(cmds, "diagnostics")
-  print(result.diagnostics)
 end
 
 vim.lsp.handlers["window/logMessage"] = function (_, result, ctx, config)

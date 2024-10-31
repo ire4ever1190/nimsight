@@ -12,14 +12,14 @@ import nim_lsp_sdk/[types, params, methods, utils]
 
 using s: var Server
 
-proc checkFile(handle: RequestHandle, params: DidOpenTextDocumentParams | DidChangeTextDocumentParams) {.gcsafe.} =
+
+proc checkFile(handle: RequestHandle, params: DidOpenTextDocumentParams | DidChangeTextDocumentParams | DidSaveTextDocumentParams) {.gcsafe.} =
   ## Publishes `nim check` dianostics
   let doc = params.textDocument
   debug "Checking: ", doc.uri
   let diagnostics = handle.getDiagnostics(doc.uri.replace("file://", ""))
   sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
     uri: doc.uri,
-    version: some doc.version,
     diagnostics: diagnostics
   ))
 
@@ -40,6 +40,9 @@ lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocum
   h.checkFile(params)
 lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
   h.checkFile(params)
+lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
+  h.checkFile(params)
+
 
 
 lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction]:

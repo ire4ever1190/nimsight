@@ -75,7 +75,7 @@ macro nvimTest(body: untyped): string =
   let
     code = body.readBlock()
     # TODO: Better temp file naming
-    tempBaseName = "/tmp/" & $body.lineInfoObj.line
+    tempBaseName = "/tmp/nvimtest" & $body.lineInfoObj.line
     file = tempBaseName & ".nim"
     commands = (code.parseCommands() & ":q!").join("\n")
   echo commands

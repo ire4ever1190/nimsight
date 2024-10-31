@@ -112,6 +112,8 @@ type
 
   DocumentSymbolParams* = object of mixed(PartialResultParams)
     textDocument*: TextDocumentIdentifier
+  DidSaveTextDocumentParams* = object
+    textDocument*: TextDocumentIdentifier
   InitializedParams* = object
 #
 # Client messages
@@ -124,6 +126,7 @@ registerClientMessage(logMessage, LogMessageParams, void, true)
 # Server messages
 #
 registerServerMessage(openedNotification, DidOpenTextDocumentParams, void, true)
+registerServerMessage(savedNotification, DidSaveTextDocumentParams, void, true)
 registerServerMessage(changedNotification, DidChangeTextDocumentParams, void, true)
 registerServerMessage(initialNotification, InitializedParams, void, true)
 registerServerMessage(symbolDefinition, TextDocumentPositionParams, Option[Location], true)

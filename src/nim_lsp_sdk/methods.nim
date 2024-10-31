@@ -6,6 +6,7 @@ const
   pubDiagnotisticsNotification* = "textDocument/publishDiagnostics"
   changedNotification* = "textDocument/didChange"
   openedNotification* = "textDocument/didOpen"
+  savedNotification* = "textDocument/didSave"
   symbolDefinition* = "textDocument/definition"
   logMessage* = "window/logMessage"
     ## Logs a message to the client
