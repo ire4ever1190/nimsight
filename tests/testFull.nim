@@ -1,6 +1,5 @@
 import std/[osproc, streams, os, unittest, macros, strutils, strformat, strscans]
 
-
 proc readBlock(x: NimNode): string =
   ## Returns the block of code that corresponds to
   ## a NimNode. Only works on code thats in a source
@@ -79,6 +78,7 @@ macro nvimTest(body: untyped): string =
     tempBaseName = "/tmp/" & $body.lineInfoObj.line
     file = tempBaseName & ".nim"
     commands = (code.parseCommands() & ":q!").join("\n")
+  echo commands
   # Can't remember if nimcheck performs IO or not
   if not defined(nimcheck):
     file.writeFile(code)
@@ -98,6 +98,9 @@ test "No errors on startup":
 
 test "Can get diagnostics":
   let output = nvimTest:
+    discard
+    #> :w
+    #> :diagnostics
     {.warning: "Warning is shown".} #[
     ^ :Diag ]#
     {.hint: "Hint is shown".} #[
