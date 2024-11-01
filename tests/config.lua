@@ -53,11 +53,24 @@ function dump(o)
    end
 end
 
+-- Returns true if the cursor is in a range
+function in_range(range)
+  local r, c = unpack(vim.api.nvim_win_get_cursor(0))
+  r = r - 1
+  local start_col = range["start"]["character"]
+  local end_col = range["end"]["character"]
+  local start_line  = range["start"]["line"]
+  local end_line = range["end"]["line"]
+  print("(    ", start_line, ":", start_col, ", ", end_line, ":", end_col , "   )")
+  return (r == start_line and c >= start_col) or -- Start line
+         (r == end_line and c < end_col) or -- Finish line
+         (r > start_line and r < end_line) -- In-between
+end
 
 -- Just store the diagnostics, will will print them when asked
 diagnostics = {}
 vim.lsp.handlers["textDocument/publishDiagnostics"] = function (_, result, ctx, config)
-  print(dump(result.diagnostics))
+  diagnostics = result.diagnostics
   coroutine.resume(cmds, "diagnostics")
 end
 
@@ -70,5 +83,9 @@ end
 
 -- Prints diagnostics on the current line
 vim.api.nvim_create_user_command("Diag", function (opts)
-  print("getting called\n")
+  for _, diag in ipairs(diagnostics) do
+    if in_range(diag["range"]) then
+      print(diag["message"])
+    end
+  end
 end, { })

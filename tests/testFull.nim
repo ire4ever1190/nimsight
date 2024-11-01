@@ -8,6 +8,7 @@ proc readBlock(x: NimNode): string =
     info = x.lineInfoObj
     lines = info.filename.readFile().splitLines()
     start = info.line - 1
+  var commentOpen = false # Support #[ ]#
   # Find the line that the code ends on e.g. the indention levels go back up
   let indention = lines[start].indentation
   for i in start ..< lines.len:
@@ -15,7 +16,16 @@ proc readBlock(x: NimNode): string =
     let
       line = lines[i]
       currIndent = line.strip(leading=false).indentation
-    if currIndent notin [0, indention]: break
+      stripped = line.strip()
+    # If the indention changes then break.
+    # Because I am lazy I added support for open/close comments
+    # and nothing else
+    if currIndent notin [0, indention] and not commentOpen:
+      break
+    if stripped.endsWith("#["):
+      commentOpen = true
+    elif stripped.endsWith("]#"):
+      commentOpen = true
     result &= line & '\n'
   # Strip the ending, and make sure the indention is correct
   result = result.strip().unindent(indention)
@@ -98,15 +108,20 @@ test "No errors on startup":
 
 test "Can get diagnostics":
   let output = nvimTest:
-    discard
+    ##
     #> :w
     #> :diagnostics
     {.warning: "Warning is shown".} #[
-    ^ :Diag ]#
+                ^ :Diag ]#
+    {.warning: "Make sure the test works".}
     {.hint: "Hint is shown".} #[
-    ^ :Diag ]#
+             ^ :Diag ]#
     {.error: "Error is shown.".} #[
-    ^ :Diag ]#
+              ^ :Diag ]#
+    ##
   check "Warning is shown" in output
   check "Hint is shown" in output
   check "Error is shown" in output
+  # Just a sanity check to make sure only the things
+  # we point to
+  check "Make sure the test works" notin output
