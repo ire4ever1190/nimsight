@@ -35,9 +35,9 @@ import nim_lsp_sdk/utils
 var lsp = initServer("CTN")
 
 
-# s
-lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
-  h.checkFile(params)
+when false:
+  lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
+    h.checkFile(params)
 lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
   h.checkFile(params)
 lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:

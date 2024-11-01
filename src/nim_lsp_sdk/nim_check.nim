@@ -44,16 +44,21 @@ type
     of Unknown, AmbigiousIdentifier:
       possibleSymbols*: seq[string]
 
-proc initPos(x: TLineInfo): Position =
-  return Position(line: uint x.line - 1, character: uint x.col)
 
 proc initPos(line: SomeInteger, col: SomeInteger): Position =
   ## Creates a position from a line/col that is 1 indexed
-  return Position(line: uint line - 1, character: uint col - 1)
+  result = Position(character: uint col - 1)
+  # Handle underflows
+  if line != 0:
+    result.line = uint line - 1
+
+
+func initPos(x: TLineInfo): Position =
+  initPos(uint x.line, uint x.col + 1)
 
 func initRange(p: PNode): Range =
   ## Creates a range from a node
-  Range(start: p.info.initPos(), `end`: p.endInfo.initPos())
+  result = Range(start: p.info.initPos(), `end`: p.endInfo.initPos())
 
 func `$`(e: ParsedError): string =
   result &= e.name & "\n"
@@ -229,7 +234,11 @@ proc findNode(p: PNode, line, col: uint, careAbout: FileIndex): Option[Range] =
   ## Finds the node at (line, col) and returns the range that corresponds to it
   let info = p.info
   if info.line == line and info.col.uint == col and info.fileIndex == careAbout:
-    return p.initRange().some()
+    var range = p.initRange()
+    # Handle cases where the end info is 0
+    if range.`end` < range.start and p.kind == nkExprColonExpr:
+      return some p[1].initRange()
+    return some range
 
   for child in p:
     let res = findNode(child, line, col, careAbout)
