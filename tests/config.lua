@@ -6,7 +6,7 @@ local test_folder = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ":h")
 -- Very hacky, but I just wanted something working.
 -- Must be initialled called when the server is initialised
 cmds = coroutine.create(function ()
-  local curr_file = vim.api.nvim_buf_get_name(0):gsub(".nim", ".vim")
+  local curr_file = vim.api.nvim_buf_get_name(0):gsub("%.nim", ".vim")
   local cmds_file = io.open(curr_file)
   if cmds_file == nil then
     print("Couldn't load", curr_file)

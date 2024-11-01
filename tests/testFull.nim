@@ -1,4 +1,4 @@
-import std/[osproc, streams, os, unittest, macros, strutils, strformat, strscans]
+import std/[osproc, streams, os, unittest, macros, strutils, strformat, strscans, paths]
 
 proc readBlock(x: NimNode): string =
   ## Returns the block of code that corresponds to
@@ -78,47 +78,28 @@ proc parseCommands(x: string): seq[string] =
       result &= command.strip()
     i += 1
 
-macro nvimTest(body: untyped): string =
-  ## Writes the body to a temp file and then
-  ## runs nvim on it. Returns the messages as a string
+proc nvimTest(path: string): string =
   # Write the code to a temp file to be read by the test
   let
-    code = body.readBlock()
-    # TODO: Better temp file naming
-    tempBaseName = "/tmp/nvimtest" & $body.lineInfoObj.line
-    file = tempBaseName & ".nim"
+    file = string(currentSourcePath.parentDir().Path / Path"scripts" / Path(path).changeFileExt("nim"))
+    code = file.readFile()
+    # Parse the commands. Make sure we always exit at the end
     commands = (code.parseCommands() & ":q!").join("\n")
-  echo commands
-  # Can't remember if nimcheck performs IO or not
-  if not defined(nimcheck):
-    file.writeFile(code)
-    # Extract the commands from the source
-    (tempBaseName & ".vim").writeFile(commands)
+  # Extract the commands from the source
+  file.changeFileExt("vim").writeFile(commands)
+  echo  file.changeFileExt("vim")
 
-  result = quote do:
-    runTest(`file`)
+  runTest(file)
 
 
 test "No errors on startup":
-  let output = nvimTest:
-    discard "Empty"
+  let output = nvimTest("empty.nim")
 
   check "RPC[Error]" notin output
   check "error = " notin output
 
 test "Can get diagnostics":
-  let output = nvimTest:
-    ##
-    #> :w
-    #> :diagnostics
-    {.warning: "Warning is shown".} #[
-                ^ :Diag ]#
-    {.warning: "Make sure the test works".}
-    {.hint: "Hint is shown".} #[
-             ^ :Diag ]#
-    {.error: "Error is shown.".} #[
-              ^ :Diag ]#
-    ##
+  let output = nvimTest("diagnosticPragmas")
   check "Warning is shown" in output
   check "Hint is shown" in output
   check "Error is shown" in output
