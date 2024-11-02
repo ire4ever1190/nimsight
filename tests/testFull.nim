@@ -1,4 +1,4 @@
-import std/[osproc, streams, os, unittest, macros, strutils, strformat, strscans, paths]
+import std/[osproc, streams, os, unittest, macros, strutils, strformat, strscans, paths, files]
 
 
 proc checkDiff(inputFile: string) =
@@ -12,7 +12,7 @@ proc checkDiff(inputFile: string) =
   defer: process.close()
   let code = process.waitForExit()
   checkpoint process.outputStream.readAll()
-  assert code == QuitSuccess
+  assert code == QuitSuccess, $code
 
 proc runTest(inputFile: string): string =
   ## Runs a neovim test
@@ -31,7 +31,8 @@ proc runTest(inputFile: string): string =
   assert exitCode == QuitSuccess
   result = output
   # We also want to check the output file (if applicable)
-  checkDiff(inputFile)
+  if Path(inputFile).changeFileExt("expected").fileExists:
+    checkDiff(inputFile)
 
 proc parseCommands(x: string): seq[string] =
   ## Parses all vim commands stored in the source
