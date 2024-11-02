@@ -58,7 +58,7 @@ func initPos(x: TLineInfo): Position =
 
 func initRange(p: PNode): Range =
   ## Creates a range from a node
-  result = Range(start: p.info.initPos(), `end`: p.endInfo.initPos())
+  Range(start: p.info.initPos(), `end`: p.endInfo.initPos())
 
 func `$`(e: ParsedError): string =
   result &= e.name & "\n"
