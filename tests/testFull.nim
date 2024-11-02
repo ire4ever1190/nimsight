@@ -2,10 +2,7 @@ import std/[osproc, streams, os, unittest, macros, strutils, strformat, strscans
 
 
 proc checkDiff(inputFile: string) =
-  ## Performs checks to make sure the text replacement works.
-  ## Check works by seeing if the code that continues after the comment matches
-  ## what we expect (Ignoring any whitespace).
-  ## Compile with `-d:updateTests` to auto update the diff files
+  ## Checks the output file matches what we expect
   let
     file = Path(inputFile)
     expected = file.changeFileExt("expected")
