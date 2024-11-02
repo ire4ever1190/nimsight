@@ -1,32 +1,25 @@
-import std/[osproc, streams, os, unittest, macros, strutils]
+import std/[osproc, streams, os, unittest, macros, strutils, strformat, strscans, paths, files]
 
 
-proc readBlock(x: NimNode): string =
-  ## Returns the block of code that corresponds to
-  ## a NimNode. Only works on code thats in a source
-  ## file (i.e. not macro generated code)
+proc checkDiff(inputFile: string) =
+  ## Checks the output file matches what we expect
   let
-    info = x.lineInfoObj
-    lines = info.filename.readFile().splitLines()
-    start = info.line - 1
-  # Find the line that the code ends on e.g. the indention levels go back up
-  let indention = lines[start].indentation
-  for i in start ..< lines.len:
-    # When the indention changes, its a different block
-    let
-      line = lines[i]
-      currIndent = line.strip(leading=false).indentation
-    if currIndent notin [0, indention]: break
-    result &= line & '\n'
-  # Strip the ending, and make sure the indention is correct
-  result = result.strip().unindent(indention)
+    file = Path(inputFile)
+    expected = file.changeFileExt("expected")
+    actual = file.changeFileExt("out")
+  # Run diff on them
+  let process = startProcess("diff", args = [$expected, $actual], options={poStdErrToStdOut, poUsePath})
+  defer: process.close()
+  let code = process.waitForExit()
+  checkpoint process.outputStream.readAll()
+  assert code == QuitSuccess, $code
 
 proc runTest(inputFile: string): string =
   ## Runs a neovim test
   # Start the neovim process
   let configFile = currentSourcePath.parentDir() / "config.lua"
   let p = startProcess(
-    "nvim", args=["nvim", "--clean", "--headless", "-u", $configFile, inputFile],
+    "nvim", args=["nvim", "-n", "--clean", "--headless", "-u", $configFile, inputFile],
     options={poUsePath, poStdErrToStdOut}
   )
   defer: p.close()
@@ -37,36 +30,77 @@ proc runTest(inputFile: string): string =
   checkpoint output
   assert exitCode == QuitSuccess
   result = output
+  # We also want to check the output file (if applicable)
+  if Path(inputFile).changeFileExt("expected").fileExists:
+    checkDiff(inputFile)
 
 proc parseCommands(x: string): seq[string] =
   ## Parses all vim commands stored in the source
+  ##
   ## Commands can be stored inline by prefixing with `#>` e.g.
   ## ```
   ## #> :q
   ## ```
-  for line in x.splitLines:
+  ## Or point to a particular line, in this case the cursor will jump
+  ## to the position before calling the command
+  ## ```
+  ## # This will move the cursor to the first 'e' then call :idk
+  ## echo "hello" #[
+  ##        ^ :idk ]#
+  ## ```
+  var i = 0
+  let lines = x.splitLines()
+  while i < lines.len:
+    let line = lines[i]
     if line.startsWith("#> "):
       result &= line.replace("#> ", "")
+    elif line.strip().endsWith("#["):
+      i += 1
+      let
+        line = lines[i]
+        col = line.indentation()
+      result &= fmt":cal cursor({i}, {col})"
+      let (ok, command) = line.strip().scanTuple("^$+]#")
+      assert ok, line
+      result &= command.strip()
+    i += 1
 
-macro nvimTest(body: untyped): string =
-  ## Writes the body to a temp file and then
-  ## runs nvim on it. Returns the messages as a string
+proc getCommands(path: string): seq[string] =
+  ## Returns all the commands that should be called for a file
+  result = path.readFile.parseCommands()
+  # If there is an expected file, then save
+  if fileExists($path.Path.changeFileExt(".expected")):
+    result &= ":w! " & $path.Path.changeFileExt("out")
+  # Always exit
+  result &= ":q!"
+
+proc nvimTest(path: string): string =
   # Write the code to a temp file to be read by the test
-  let code = body.readBlock()
-  # TODO: Better temp file naming
-  let tempBaseName = "/tmp/" & $body.lineInfoObj.line
-  let file = tempBaseName & ".nim"
-  file.writeFile(code)
+  let
+    file = string(currentSourcePath.parentDir().Path / Path"scripts" / Path(path).changeFileExt("nim"))
+    # Parse the commands. Make sure we always exit at the end
+    commands = file.getCommands()
   # Extract the commands from the source
-  (tempBaseName & ".vim").writeFile(code.parseCommands().join("\n"))
+  file.changeFileExt("vim").writeFile(commands.join("\n"))
 
-  result = quote do:
-    runTest(`file`)
+  runTest(file)
 
 
 test "No errors on startup":
-  let output = nvimTest:
-    discard "Empty"
-    #> :q!
+  let output = nvimTest("empty.nim")
 
   check "RPC[Error]" notin output
+  check "error = " notin output
+
+test "Can get diagnostics":
+  let output = nvimTest("diagnosticPragmas")
+  check "Warning is shown" in output
+  check "Hint is shown" in output
+  check "Error is shown" in output
+  # Just a sanity check to make sure only the things
+  # we point to
+  check "Make sure the test works" notin output
+
+suite "Code actions":
+  test "Function rename":
+    discard nvimTest("codeAction")

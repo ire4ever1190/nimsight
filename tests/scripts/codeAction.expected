@@ -1,0 +1,9 @@
+#> :w
+#> :wait textDocument/publishDiagnostics
+
+proc bamboo() = discard
+
+bamboo() #[
+  ^ :CodeAction ]#
+
+#> :wait TextChanged

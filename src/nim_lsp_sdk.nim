@@ -12,14 +12,14 @@ import nim_lsp_sdk/[types, params, methods, utils]
 
 using s: var Server
 
-proc checkFile(handle: RequestHandle, params: DidOpenTextDocumentParams | DidChangeTextDocumentParams) {.gcsafe.} =
+
+proc checkFile(handle: RequestHandle, params: DidOpenTextDocumentParams | DidChangeTextDocumentParams | DidSaveTextDocumentParams) {.gcsafe.} =
   ## Publishes `nim check` dianostics
   let doc = params.textDocument
   debug "Checking: ", doc.uri
   let diagnostics = handle.getDiagnostics(doc.uri.replace("file://", ""))
   sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
     uri: doc.uri,
-    version: some doc.version,
     diagnostics: diagnostics
   ))
 
@@ -34,24 +34,24 @@ import nim_lsp_sdk/utils
 
 var lsp = initServer("CTN")
 
-
-# s
 lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
   h.checkFile(params)
+
 lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
+  h.checkFile(params)
+
+lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
   h.checkFile(params)
 
 
 lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction]:
-  # Custom actions
-  let file = params.textDocument.parseFile()
-
   # Find actions for errors
   # Literal braindead implementation. Rerun the checks and try to match it up.
   # Need to do something like
   let errors = h.getErrors(params.textDocument.uri.replace("file://", ""))
   # First we find the error that matches. Since they are parsed the same we should
   # be able to line them up exactly
+  debug params.context.diagnostics.len
   for err in errors:
     for diag in params.context.diagnostics:
       if err.range == diag.range:
@@ -75,5 +75,8 @@ lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionP
 
 lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) -> seq[DocumentSymbol]:
   return params.textDocument.parseFile().outLineDocument()
+
+lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams):
+  logging.info("Client initialised")
 
 lsp.poll()

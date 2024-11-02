@@ -112,6 +112,9 @@ type
 
   DocumentSymbolParams* = object of mixed(PartialResultParams)
     textDocument*: TextDocumentIdentifier
+  DidSaveTextDocumentParams* = object
+    textDocument*: TextDocumentIdentifier
+  InitializedParams* = object
 #
 # Client messages
 #
@@ -123,7 +126,9 @@ registerClientMessage(logMessage, LogMessageParams, void, true)
 # Server messages
 #
 registerServerMessage(openedNotification, DidOpenTextDocumentParams, void, true)
+registerServerMessage(savedNotification, DidSaveTextDocumentParams, void, true)
 registerServerMessage(changedNotification, DidChangeTextDocumentParams, void, true)
+registerServerMessage(initialNotification, InitializedParams, void, true)
 registerServerMessage(symbolDefinition, TextDocumentPositionParams, Option[Location], true)
 # TODO: Add ability to support goofy returns like (Command | CodeAction)[]
 # Support is basically there, think its just the parsing that needs to be changed

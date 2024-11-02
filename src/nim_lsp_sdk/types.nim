@@ -397,3 +397,5 @@ type
   ServerError* = object of CatchableError
     code*: ErrorCode
 
+func `<`*(a, b: Position): bool =
+  return a.line < b.line or  (a.line == b.line and a.character < b.character)
