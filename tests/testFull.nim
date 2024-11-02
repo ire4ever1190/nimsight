@@ -1,41 +1,28 @@
 import std/[osproc, streams, os, unittest, macros, strutils, strformat, strscans, paths]
 
-proc readBlock(x: NimNode): string =
-  ## Returns the block of code that corresponds to
-  ## a NimNode. Only works on code thats in a source
-  ## file (i.e. not macro generated code)
+
+proc checkDiff(inputFile: string) =
+  ## Performs checks to make sure the text replacement works.
+  ## Check works by seeing if the code that continues after the comment matches
+  ## what we expect (Ignoring any whitespace).
+  ## Compile with `-d:updateTests` to auto update the diff files
   let
-    info = x.lineInfoObj
-    lines = info.filename.readFile().splitLines()
-    start = info.line - 1
-  var commentOpen = false # Support #[ ]#
-  # Find the line that the code ends on e.g. the indention levels go back up
-  let indention = lines[start].indentation
-  for i in start ..< lines.len:
-    # When the indention changes, its a different block
-    let
-      line = lines[i]
-      currIndent = line.strip(leading=false).indentation
-      stripped = line.strip()
-    # If the indention changes then break.
-    # Because I am lazy I added support for open/close comments
-    # and nothing else
-    if currIndent notin [0, indention] and not commentOpen:
-      break
-    if stripped.endsWith("#["):
-      commentOpen = true
-    elif stripped.endsWith("]#"):
-      commentOpen = true
-    result &= line & '\n'
-  # Strip the ending, and make sure the indention is correct
-  result = result.strip().unindent(indention)
+    file = Path(inputFile)
+    expected = file.changeFileExt("expected")
+    actual = file.changeFileExt("out")
+  # Run diff on them
+  let process = startProcess("diff", args = [$expected, $actual], options={poStdErrToStdOut, poUsePath})
+  defer: process.close()
+  let code = process.waitForExit()
+  checkpoint process.outputStream.readAll()
+  assert code == QuitSuccess
 
 proc runTest(inputFile: string): string =
   ## Runs a neovim test
   # Start the neovim process
   let configFile = currentSourcePath.parentDir() / "config.lua"
   let p = startProcess(
-    "nvim", args=["nvim", "--clean", "--headless", "-u", $configFile, inputFile],
+    "nvim", args=["nvim", "-n", "--clean", "--headless", "-u", $configFile, inputFile],
     options={poUsePath, poStdErrToStdOut}
   )
   defer: p.close()
@@ -46,6 +33,8 @@ proc runTest(inputFile: string): string =
   checkpoint output
   assert exitCode == QuitSuccess
   result = output
+  # We also want to check the output file (if applicable)
+  checkDiff(inputFile)
 
 proc parseCommands(x: string): seq[string] =
   ## Parses all vim commands stored in the source
@@ -78,16 +67,23 @@ proc parseCommands(x: string): seq[string] =
       result &= command.strip()
     i += 1
 
+proc getCommands(path: string): seq[string] =
+  ## Returns all the commands that should be called for a file
+  result = path.readFile.parseCommands()
+  # If there is an expected file, then save
+  if fileExists($path.Path.changeFileExt(".expected")):
+    result &= ":w! " & $path.Path.changeFileExt("out")
+  # Always exit
+  result &= ":q!"
+
 proc nvimTest(path: string): string =
   # Write the code to a temp file to be read by the test
   let
     file = string(currentSourcePath.parentDir().Path / Path"scripts" / Path(path).changeFileExt("nim"))
-    code = file.readFile()
     # Parse the commands. Make sure we always exit at the end
-    commands = (code.parseCommands() & ":q!").join("\n")
+    commands = file.getCommands()
   # Extract the commands from the source
-  file.changeFileExt("vim").writeFile(commands)
-  echo  file.changeFileExt("vim")
+  file.changeFileExt("vim").writeFile(commands.join("\n"))
 
   runTest(file)
 
@@ -106,3 +102,7 @@ test "Can get diagnostics":
   # Just a sanity check to make sure only the things
   # we point to
   check "Make sure the test works" notin output
+
+suite "Code actions":
+  test "Function rename":
+    discard nvimTest("codeAction")

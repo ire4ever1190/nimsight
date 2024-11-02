@@ -1,5 +1,6 @@
 -- https://www.reddit.com/r/neovim/comments/1cxsy0c/comment/l554j3t
 local test_folder = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ":h")
+local custom_cmds = {}
 
 -- Load the tests.
 -- We create a coroutine so that we can have it wait on events.
@@ -13,17 +14,38 @@ cmds = coroutine.create(function ()
     return
   end
   for line in cmds_file:lines() do
-    -- Wait for a certain message to be sent
+    -- Check if we are waiting on an LSP message
+    match = string.match(line, ":wait%s+(.+)")
     print("Running", line)
-    if line == ":diagnostics" then
-      while coroutine.yield() ~= "diagnostics" do
+    if match ~= nil then
+      while coroutine.yield() ~= match do
       end
     else
       -- Just run the command
       vim.cmd(line)
+      -- Custom commands, we want to wait until they are finished
+      if custom_cmds[line] then
+        print("Waiting")
+        while coroutine.yield() ~= line do
+        end
+      end
     end
   end
+  print("Finished")
 end)
+
+
+function register_cmd(name, func, extra)
+  cmd_name = ":" .. name
+  custom_cmds[cmd_name] = true
+  local function wrapped(opts)
+    print("Running")
+    func(opts)
+    print("Ran")
+    coroutine.resume(cmds, cmd_name)
+  end
+  vim.api.nvim_create_user_command(name, wrapped, extra)
+end
 
 vim.lsp.set_log_level("TRACE")
 local config = {
@@ -61,31 +83,78 @@ function in_range(range)
   local end_col = range["end"]["character"]
   local start_line  = range["start"]["line"]
   local end_line = range["end"]["line"]
-  print("(    ", start_line, ":", start_col, ", ", end_line, ":", end_col , "   )")
+  print("(    ", start_line, ":", start_col, ", ", end_line, ":", end_col , " | ",r, c,  "   )")
   return (r == start_line and c >= start_col) or -- Start line
          (r == end_line and c < end_col) or -- Finish line
          (r > start_line and r < end_line) -- In-between
 end
 
+
+-- Function to add a listener for a method.
+-- Calls the handler, then polls the
+function listen_for(meth, handler)
+  vim.lsp.handlers[meth] = function (idk, result, ctx, config)
+    handler(idk, result, ctx, config)
+    print("Polling for " .. meth)
+    coroutine.resume(cmds, meth)
+  end
+end
+
 -- Just store the diagnostics, will will print them when asked
 diagnostics = {}
-vim.lsp.handlers["textDocument/publishDiagnostics"] = function (_, result, ctx, config)
+listen_for("textDocument/publishDiagnostics", function (idk, result, ctx, config)
   diagnostics = result.diagnostics
-  coroutine.resume(cmds, "diagnostics")
-end
+  vim.lsp.diagnostic.on_publish_diagnostics(idk, result, ctx, config)
+end)
+
 
 vim.lsp.handlers["window/logMessage"] = function (_, result, ctx, config)
   print(result["message"])
 end
 
 
+function get_diagnostics()
+  local result = {}
+  for _, diag in ipairs(diagnostics) do
+    if in_range(diag["range"]) then
+      result[#result + 1] = diag
+    end
+  end
+  print(dump(result))
+  return result
+end
+
 -- Register commands to make writing tests easier
 
 -- Prints diagnostics on the current line
 vim.api.nvim_create_user_command("Diag", function (opts)
-  for _, diag in ipairs(diagnostics) do
-    if in_range(diag["range"]) then
-      print(diag["message"])
-    end
+  for _, diag in ipairs(get_diagnostics()) do
+    print(diag["message"])
   end
 end, { })
+
+-- Applies a code action
+vim.api.nvim_create_user_command("CodeAction", function (opts)
+  local pos = vim.api.nvim_win_get_cursor(0)
+  vim.lsp.buf.code_action({
+    context = {
+      diagnostics = get_diagnostics()
+    },
+    apply = true,
+    range = {start = pos, ["end"] = pos}
+  })
+  coroutine.resume(cmds, "textDocument/codeAction")
+end, {})
+
+-- Saves the file in a knowable place
+vim.api.nvim_create_user_command("SaveTemp", function (opts)
+  local curr_file = vim.api.nvim_buf_get_name(0):gsub("%.nim", ".out")
+  vim.cmd(":w! " .. curr_file)
+end, {})
+
+-- Poll when the buffer is modified
+vim.api.nvim_create_autocmd('TextChanged', {
+  callback = function(args)
+    coroutine.resume(cmds, "TextChanged")
+  end,
+})
