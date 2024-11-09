@@ -147,6 +147,7 @@ proc poll*(server: var Server) =
     t.createThread(workerThread, addr server)
   while true:
     let request = readRequest()
+    debug "read sometghin"
     let id = request.id
     if request of RequestMessage:
       info "Recieved method: ", RequestMessage(request).`method`

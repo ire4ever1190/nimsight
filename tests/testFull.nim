@@ -27,9 +27,9 @@ proc runTest(inputFile: string): string =
   let
     exitCode = p.waitForExit(10000)
     output = p.outputStream().readAll()
-  checkpoint output
+  result = output.replace("<====>", "\n")
+  checkpoint result
   assert exitCode == QuitSuccess
-  result = output
   # We also want to check the output file (if applicable)
   if Path(inputFile).changeFileExt("expected").fileExists:
     checkDiff(inputFile)
@@ -104,3 +104,10 @@ test "Can get diagnostics":
 suite "Code actions":
   test "Function rename":
     discard nvimTest("codeAction")
+
+test "Outline":
+  let output = nvimTest("outline")
+  check """
+Person
+ - name: 3
+""" in output

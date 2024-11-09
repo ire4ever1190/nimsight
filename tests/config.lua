@@ -2,66 +2,6 @@
 local test_folder = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ":h")
 local custom_cmds = {}
 
--- Load the tests.
--- We create a coroutine so that we can have it wait on events.
--- Very hacky, but I just wanted something working.
--- Must be initialled called when the server is initialised
-cmds = coroutine.create(function ()
-  local curr_file = vim.api.nvim_buf_get_name(0):gsub("%.nim", ".vim")
-  local cmds_file = io.open(curr_file)
-  if cmds_file == nil then
-    print("Couldn't load", curr_file)
-    return
-  end
-  for line in cmds_file:lines() do
-    -- Check if we are waiting on an LSP message
-    match = string.match(line, ":wait%s+(.+)")
-    print("Running", line)
-    if match ~= nil then
-      while coroutine.yield() ~= match do
-      end
-    else
-      -- Just run the command
-      vim.cmd(line)
-      -- Custom commands, we want to wait until they are finished
-      if custom_cmds[line] then
-        print("Waiting")
-        while coroutine.yield() ~= line do
-        end
-      end
-    end
-  end
-  print("Finished")
-end)
-
-
-function register_cmd(name, func, extra)
-  cmd_name = ":" .. name
-  custom_cmds[cmd_name] = true
-  local function wrapped(opts)
-    print("Running")
-    func(opts)
-    print("Ran")
-    coroutine.resume(cmds, cmd_name)
-  end
-  vim.api.nvim_create_user_command(name, wrapped, extra)
-end
-
-vim.lsp.set_log_level("TRACE")
-local config = {
-  name = "Nim LSP Test",
-  cmd = {test_folder .. "/../" .. "nim_lsp_sdk"}
-}
-
-config.on_init = function (client, results)
-  print("Attaching", client.id)
-  vim.lsp.buf_attach_client(0, client.id)
-
-  -- Now run the tests
-  coroutine.resume(cmds)
-end
-vim.lsp.start_client(config)
-
 function dump(o)
    if type(o) == 'table' then
       local s = '{ '
@@ -75,6 +15,76 @@ function dump(o)
    end
 end
 
+
+function println(...)
+  -- newlines get removed for some reason
+  -- So use the unit separator
+  print(select(1, ...))
+  print("<====>")
+end
+
+-- Load the tests.
+-- We create a coroutine so that we can have it wait on events.
+-- Very hacky, but I just wanted something working.
+-- Must be initialled called when the server is initialised
+cmds = coroutine.create(function ()
+  local curr_file = vim.api.nvim_buf_get_name(0):gsub("%.nim", ".vim")
+  local cmds_file = io.open(curr_file)
+  if cmds_file == nil then
+    println("Couldn't load", curr_file)
+    return
+  end
+  for line in cmds_file:lines() do
+    -- Check if we are waiting on an LSP message
+    match = string.match(line, ":wait%s+(.+)")
+    println("Running", line)
+    if match ~= nil then
+      while coroutine.yield() ~= match do
+      end
+    else
+      -- Just run the command
+      println("Running")
+      vim.cmd(line)
+      println("Ran")
+      -- Custom commands, we want to wait until they are finished
+      if custom_cmds[line] then
+        println("Waiting")
+        while coroutine.yield() ~= line do
+        end
+      end
+    end
+  end
+  println("Finished")
+end)
+
+
+function register_cmd(name, func, extra)
+  cmd_name = ":" .. name
+  custom_cmds[cmd_name] = true
+  local function wrapped(opts)
+    println("Running")
+    func(opts)
+    println("Ran")
+    coroutine.resume(cmds, cmd_name)
+  end
+  vim.api.nvim_create_user_command(name, wrapped, extra)
+end
+
+vim.lsp.set_log_level("TRACE")
+local config = {
+  name = "Nim LSP Test",
+  cmd = {test_folder .. "/../" .. "nim_lsp_sdk"}
+}
+
+config.on_init = function (client, results)
+  println("Attaching", client.id)
+  vim.lsp.buf_attach_client(0, client.id)
+
+  -- Now run the tests
+  coroutine.resume(cmds)
+end
+vim.lsp.start_client(config)
+
 -- Returns true if the cursor is in a range
 function in_range(range)
   local r, c = unpack(vim.api.nvim_win_get_cursor(0))
@@ -83,7 +93,7 @@ function in_range(range)
   local end_col = range["end"]["character"]
   local start_line  = range["start"]["line"]
   local end_line = range["end"]["line"]
-  print("(    ", start_line, ":", start_col, ", ", end_line, ":", end_col , " | ",r, c,  "   )")
+  println("(    ", start_line, ":", start_col, ", ", end_line, ":", end_col , " | ",r, c,  "   )")
   return (r == start_line and c >= start_col) or -- Start line
          (r == end_line and c < end_col) or -- Finish line
          (r > start_line and r < end_line) -- In-between
@@ -95,7 +105,7 @@ end
 function listen_for(meth, handler)
   vim.lsp.handlers[meth] = function (idk, result, ctx, config)
     handler(idk, result, ctx, config)
-    print("Polling for " .. meth)
+    println("Polling for " .. meth)
     coroutine.resume(cmds, meth)
   end
 end
@@ -107,9 +117,15 @@ listen_for("textDocument/publishDiagnostics", function (idk, result, ctx, config
   vim.lsp.diagnostic.on_publish_diagnostics(idk, result, ctx, config)
 end)
 
+listen_for("textDocument/documentSymbol", function (_, result, _, config)
+  for _, symbol in ipairs(result) do
+    println(symbol["name"])
+  end
+end)
+
 
 vim.lsp.handlers["window/logMessage"] = function (_, result, ctx, config)
-  print(result["message"])
+  println(result["message"])
 end
 
 
@@ -120,7 +136,7 @@ function get_diagnostics()
       result[#result + 1] = diag
     end
   end
-  print(dump(result))
+  println(dump(result))
   return result
 end
 
@@ -129,7 +145,7 @@ end
 -- Prints diagnostics on the current line
 vim.api.nvim_create_user_command("Diag", function (opts)
   for _, diag in ipairs(get_diagnostics()) do
-    print(diag["message"])
+    println(diag["message"])
   end
 end, { })
 
@@ -152,9 +168,20 @@ vim.api.nvim_create_user_command("SaveTemp", function (opts)
   vim.cmd(":w! " .. curr_file)
 end, {})
 
+vim.api.nvim_create_user_command('Symbols', function (opts)
+  println("Rumble")
+  local args = { textDocument = vim.lsp.util.make_text_document_params() }
+  vim.lsp.buf_request_sync_all(0, "textDocument/documentSymbol", args, function (result)
+    println(dump(result))
+  end)
+end, {})
+
 -- Poll when the buffer is modified
 vim.api.nvim_create_autocmd('TextChanged', {
   callback = function(args)
     coroutine.resume(cmds, "TextChanged")
   end,
 })
+
+
+
