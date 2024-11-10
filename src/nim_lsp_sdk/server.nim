@@ -182,7 +182,8 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     # Some manual capabilities will also need to be added
     InitializeResult(
       capabilities: ServerCapabilities(
-        codeActionProvider: true
+        codeActionProvider: true,
+        documentSymbolProvider: ServerCapabilities.documentSymbolProvider.init(true)
       ),
       serverInfo: ServerInfo(
         name: r.server[].name,

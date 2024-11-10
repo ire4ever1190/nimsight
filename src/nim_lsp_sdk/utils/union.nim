@@ -24,7 +24,10 @@ macro createUnion(x: typedesc): untyped =
   # Generate all the branches in the object
   let branches = collect:
     for i, typ in types:
-      nnkOfBranch.newTree(newLit i, nnkRecList.newTree(newIdentDefs(ident "Field" & $i, typ)))
+      # For simplicity sake, I also export the fields
+      # TODO: Don't require exporting fields
+      nnkOfBranch.newTree(newLit i, nnkRecList.newTree(
+        newIdentDefs(nnkPostfix.newTree(ident"*", ident "Field" & $i), typ)))
 
   # Combine it all to make the object
   result = nnkTypeSection.newTree(
@@ -35,7 +38,7 @@ macro createUnion(x: typedesc): untyped =
         newEmptyNode(),
         newEmptyNode(),
         nnkRecList.newTree(
-          nnkRecCase.newTree(newIdentDefs(discrimField, rangeType))
+          nnkRecCase.newTree(newIdentDefs(nnkPostfix.newTree(ident"*", discrimField), rangeType))
           .add(branches)
         )
       )
