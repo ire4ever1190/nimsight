@@ -25,8 +25,7 @@ end
 
 -- Load the tests.
 -- We create a coroutine so that we can have it wait on events.
--- Very hacky, but I just wanted something working.
--- Must be initialled called when the server is initialised
+-- Must be initially called when the server is initialised
 cmds = coroutine.create(function ()
   local curr_file = vim.api.nvim_buf_get_name(0):gsub("%.nim", ".vim")
   local cmds_file = io.open(curr_file)
@@ -44,7 +43,10 @@ cmds = coroutine.create(function ()
     else
       -- Just run the command
       println("Running")
-      vim.cmd(line)
+      local status, err = pcall(function () vim.cmd(line) end)
+      if err then
+        println(status, err)
+      end
       println("Ran")
       -- Custom commands, we want to wait until they are finished
       if custom_cmds[line] then
@@ -171,9 +173,12 @@ end, {})
 vim.api.nvim_create_user_command('Symbols', function (opts)
   println("Rumble")
   local args = { textDocument = vim.lsp.util.make_text_document_params() }
-  vim.lsp.buf_request_sync_all(0, "textDocument/documentSymbol", args, function (result)
+  println(dump(args))
+  local res = vim.lsp.buf_request_all(0, "textDocument/documentSymbol", args, function (result)
     println(dump(result))
   end)
+  res()
+  println("Sent")
 end, {})
 
 -- Poll when the buffer is modified

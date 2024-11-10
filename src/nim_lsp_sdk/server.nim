@@ -178,6 +178,8 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
   )
 
   result.listen("initialize") do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
+    # Find what is supported depending on what handlers are registered.
+    # Some manual capabilities will also need to be added
     InitializeResult(
       capabilities: ServerCapabilities(
         codeActionProvider: true
