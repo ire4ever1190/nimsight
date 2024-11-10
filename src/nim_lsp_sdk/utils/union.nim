@@ -160,5 +160,8 @@ proc fromJsonHook*(a: var Union, b: JsonNode, opt = JOptions()) =
       return
     except JsonKindError, JsonParsingError, ValueError:
       discard
-  echo "ruh roh"
   raise (ref ValueError)(msg: "Unable to parse " & $U)
+
+proc toJsonHook*(a: Union, opt = initToJsonOptions()): JsonNode =
+  a.getCurrentField:
+    return it.toJson(opt)
