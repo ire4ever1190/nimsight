@@ -389,8 +389,15 @@ type
   CodeActionOptions* = ref object of WorkDoneProgressOptions
     codeActionKinds*: seq[CodeActionKind]
     resolveProvider*: bool
+
+  DocumentSymbolOptions* = object
+    ## [See Spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#documentSymbolOptions)
+    label*: Option[string]
+
   ServerCapabilities* = object
     codeActionProvider*: bool
+    documentSymbolProvider*: Union[(bool, DocumentSymbolOptions)]
+
   ClientCapabilities* = object
 
 type

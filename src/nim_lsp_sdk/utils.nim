@@ -2,6 +2,7 @@ import std/[macrocache, macros, strformat]
 
 import threading/[rwlock]
 
+import ./utils/union
 
 const rpcMethods = CacheTable"lsp.rpcMethods"
   ## Mapping of method name to param/return type.
@@ -80,3 +81,4 @@ macro mixed*(objs: varargs[typed]): typedesc =
   ))
   result = newStmtList(result, name)
 
+export union

@@ -29,3 +29,5 @@ method log*(logger: LSPLogger, level: Level, args: varargs[string, `$`]) {.gcsaf
     `type`: level.toMessageType(),
     message: msg
   ))
+
+export logging

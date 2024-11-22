@@ -128,6 +128,7 @@ proc workerThread(server: ptr Server) {.thread.} =
         if returnVal.isSome():
           request.respond(returnVal.unsafeGet())
       except ServerError as e:
+        debug("Failed: ", e.msg)
         request.respond(e[])
     else:
       request.respond(ServerError(code: MethodNotFound, msg: fmt"Nothing to handle {request.meth}"))
@@ -177,9 +178,12 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
   )
 
   result.listen("initialize") do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
+    # Find what is supported depending on what handlers are registered.
+    # Some manual capabilities will also need to be added
     InitializeResult(
       capabilities: ServerCapabilities(
-        codeActionProvider: true
+        codeActionProvider: true,
+        documentSymbolProvider: ServerCapabilities.documentSymbolProvider.init(true)
       ),
       serverInfo: ServerInfo(
         name: r.server[].name,

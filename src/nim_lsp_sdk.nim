@@ -1,11 +1,10 @@
 
 import std/[strscans, strutils, syncio, json, jsonutils, options, strformat, tables]
 import std/macros
-import std/logging
 import "$nim"/compiler/ast
 import nim_lsp_sdk/[nim_check, server, protocol]
 
-import nim_lsp_sdk/[types, params, methods, utils]
+import nim_lsp_sdk/[types, params, methods, utils, logging]
 
 # var fileLog = newFileLogger("/tmp/errors.log")
 # addHandler(fileLog)
@@ -26,6 +25,7 @@ proc checkFile(handle: RequestHandle, params: DidOpenTextDocumentParams | DidCha
 
 import nim_lsp_sdk/utils
 
+addHandler(newLSPLogger())
 
 # discard RenameFileOptions(
 #   overwrite: some true,
@@ -73,7 +73,7 @@ lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionP
     )
 
 
-lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) -> seq[DocumentSymbol]:
+lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) -> seq[DocumentSymbol] {.gcsafe.}:
   return params.textDocument.parseFile().outLineDocument()
 
 lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams):
