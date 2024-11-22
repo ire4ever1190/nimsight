@@ -109,5 +109,11 @@ test "Outline":
   let output = nvimTest("outline")
   check """
 Person
- - name: 3
+ - name
+ - alive
+Foo
+ - A
+ - B
+ - C
+ - D
 """ in output

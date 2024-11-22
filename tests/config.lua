@@ -49,11 +49,11 @@ cmds = coroutine.create(function ()
       end
       println("Ran")
       -- Custom commands, we want to wait until they are finished
-      if custom_cmds[line] then
-        println("Waiting")
-        while coroutine.yield() ~= line do
-        end
-      end
+--       if custom_cmds[line] then
+--         println("Waiting")
+--         while coroutine.yield() ~= line do
+--         end
+--       end
     end
   end
   println("Finished")
@@ -61,12 +61,11 @@ end)
 
 
 function register_cmd(name, func, extra)
-  cmd_name = ":" .. name
+  local cmd_name = ":" .. name
   custom_cmds[cmd_name] = true
   local function wrapped(opts)
-    println("Running")
     func(opts)
-    println("Ran")
+    println("Resumng")
     coroutine.resume(cmds, cmd_name)
   end
   vim.api.nvim_create_user_command(name, wrapped, extra)
@@ -170,15 +169,19 @@ vim.api.nvim_create_user_command("SaveTemp", function (opts)
   vim.cmd(":w! " .. curr_file)
 end, {})
 
-vim.api.nvim_create_user_command('Symbols', function (opts)
-  println("Rumble")
+register_cmd('Symbols', function (opts, continue)
   local args = { textDocument = vim.lsp.util.make_text_document_params() }
-  println(dump(args))
-  local res = vim.lsp.buf_request_all(0, "textDocument/documentSymbol", args, function (result)
-    println(dump(result))
+  vim.lsp.buf_request_all(0, "textDocument/documentSymbol", args, function (result)
+    for _, symbol in ipairs(result[1]["result"]) do
+      println(symbol["name"])
+      if symbol["children"] ~= nil then
+        for _, child in ipairs(symbol["children"]) do
+          println(" - " .. child["name"])
+        end
+      end
+    end
+    coroutine.resume(cmds, "textDocument/documentSymbol")
   end)
-  res()
-  println("Sent")
 end, {})
 
 -- Poll when the buffer is modified
