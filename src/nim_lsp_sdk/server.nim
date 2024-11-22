@@ -128,6 +128,7 @@ proc workerThread(server: ptr Server) {.thread.} =
         if returnVal.isSome():
           request.respond(returnVal.unsafeGet())
       except ServerError as e:
+        debug("Failed: ", e.msg)
         request.respond(e[])
     else:
       request.respond(ServerError(code: MethodNotFound, msg: fmt"Nothing to handle {request.meth}"))

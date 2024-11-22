@@ -127,20 +127,17 @@ type
     InRoutine
 
 
-proc exploreAST*[T](x: PNode, result: var seq[T],
-                   handler: proc (x: PNode, state: State, result: var seq[T]),
-                   state = State.Any) =
-  ## Helper function to explore the AST. Keeps track of state of what context it is in
-  ## Calls the handler and each node.
-  handler(x, state, result)
-  let newState = case x.kind
-                 of nkObjectTy: InObject
-                 of nkEnum: InEnum
-                 of routineDefs: InRoutine
-                 else: state
-  for child in x:
-    exploreAST(child, result, state)
+proc exploreAST*(x: PNode, filter: proc (x: PNode): bool,
+                   handler: proc (x: PNode): bool) {.effectsOf: [filter, handler].}=
+  ## Helper function to explore the AST
+  ## - filter: proc to determine if the handler should be called
+  ## - handler: proc called on each node, only recurses if it returns true
+  if not filter(x) or handler(x):
+    for child in x:
+      exploreAST(child, filter, handler)
 
+proc ofKind(x: set[TNodeKind]): (proc (x: PNode): bool) =
+  proc (node: PNode): bool = node.kind in x
 
 func toSymbolKind(x: PNode): SymbolKind =
   ## Converts from Nim NodeKind into LSP SymbolKind
@@ -202,11 +199,31 @@ proc collectDocumentSymbols(x: PNode, symbols: var seq[DocumentSymbol]) =
     for child in x:
       child.collectDocumentSymbols(symbols)
 
+proc collectIdentDefs(x: PNode): seq[DocumentSymbol] =
+  var res: seq[DocumentSymbol]
+  x.exploreAST(ofKind({nkIdentDefs, nkConstDef})) do (node: PNode) -> bool:
+    for child in node.sons[0 ..< ^2]:
+      res &= child.toDocumentSymbol()
+  return res
 
 proc outlineDocument*(x: PNode): seq[DocumentSymbol] =
   ## Creates an outline of symbols in the document.
   ## TODO: Check if the client supports heirarchy or not
-  x.collectDocumentSymbols(result)
+  const used = {nkProcDef..nkIteratorDef, nkTypeDef, nkVarSection..nkConstSection}
+  var symbols: seq[DocumentSymbol]
+  x.exploreAST(ofKind(used)) do (node: PNode) -> bool:
+    if node.kind in nkVarSection..nkConstSection:
+      symbols &= node.collectIdentDefs()
+      return false
+    let sym = node.toDocumentSymbol()
+    # Types have children (enum fields, type fields)
+    if node.kind == nkTypeDef:
+      sym.children &= node.collectIdentDefs()
+      node.exploreAST(ofKind({nkEnumTy})) do (node: PNode) -> bool:
+        node.exploreAST(ofKind({nkIdent, nkEnumFieldDef})) do (node: PNode) -> bool:
+          sym.children &= (if node.kind == nkIdent: node else: node[0]).toDocumentSymbol()
+    symbols &= sym
+  return symbols
 
 proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
   ## Returns possibly fixes for an error

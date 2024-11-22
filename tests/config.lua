@@ -172,6 +172,7 @@ end, {})
 register_cmd('Symbols', function (opts, continue)
   local args = { textDocument = vim.lsp.util.make_text_document_params() }
   vim.lsp.buf_request_all(0, "textDocument/documentSymbol", args, function (result)
+    println(dump(result))
     for _, symbol in ipairs(result[1]["result"]) do
       println(symbol["name"])
       if symbol["children"] ~= nil then

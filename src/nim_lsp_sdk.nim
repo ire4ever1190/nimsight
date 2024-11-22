@@ -73,7 +73,7 @@ lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionP
     )
 
 
-lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) -> seq[DocumentSymbol]:
+lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) -> seq[DocumentSymbol] {.gcsafe.}:
   return params.textDocument.parseFile().outLineDocument()
 
 lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams):

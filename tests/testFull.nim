@@ -108,12 +108,18 @@ suite "Code actions":
 test "Outline":
   let output = nvimTest("outline")
   check """
+bar
 Person
  - name
+ - age
  - alive
 Foo
  - A
  - B
  - C
  - D
+ - E
+someLet
+anotherLet
+someConst
 """ in output
