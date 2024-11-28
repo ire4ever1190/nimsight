@@ -123,3 +123,4 @@ someLet
 anotherLet
 someConst
 """ in output
+  check "insideBlock" notin output
