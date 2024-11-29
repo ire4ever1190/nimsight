@@ -119,14 +119,6 @@ proc parseFile*(x: TextDocumentIdentifier): PNode =
   x.uri.replace("file://", "").parseFile()[1]
 
 
-type
-  State* = enum
-    Any
-    InObject
-    InEnum
-    InRoutine
-
-
 proc exploreAST*(x: PNode, filter: proc (x: PNode): bool,
                    handler: proc (x: PNode): bool) {.effectsOf: [filter, handler].}=
   ## Helper function to explore the AST
@@ -180,25 +172,6 @@ proc collectTypeFields(x: PNode, symbols: var seq[DocumentSymbol]) =
     for child in x:
       child.collectTypeFields(symbols)
 
-
-proc collectDocumentSymbols(x: PNode, symbols: var seq[DocumentSymbol]) =
-  ## Converts a node into a [DocumentSymbol].
-  ## `isA` can be used to mark that all symbols are of a certain kind. Useful for context
-  let kind = x.toSymbolKind()
-  if x.kind in {nkProcDef, nkFuncDef, nkMethodDef, nkMacroDef, nkTypeDef}:
-    var symbol = x.toDocumentSymbol()
-    # For objects, we also want to append the children
-    if kind == Enum:
-      x[2].collectDocumentSymbols(symbol.children)
-      for member in symbol.children:
-        member.kind = EnumMember
-    elif kind == Object:
-      x[2].collectTypeFields(symbol.children)
-    symbols &= symbol
-  else:
-    for child in x:
-      child.collectDocumentSymbols(symbols)
-
 proc collectIdentDefs(x: PNode): seq[DocumentSymbol] =
   var res: seq[DocumentSymbol]
   x.exploreAST(ofKind({nkIdentDefs, nkConstDef})) do (node: PNode) -> bool:
@@ -206,29 +179,41 @@ proc collectIdentDefs(x: PNode): seq[DocumentSymbol] =
       res &= child.toDocumentSymbol()
   return res
 
+proc collectType(node: PNode): DocumentSymbol =
+  ## Collects a document symbol for a type definition
+  assert node.kind == nkTypeDef, "Must be a type section"
+
+  let syms = node.toDocumentSymbol()
+
+  syms.children &= node.collectIdentDefs()
+
+  node.exploreAST(ofKind({nkEnumTy})) do (node: PNode) -> bool:
+    node.exploreAST(ofKind({nkIdent, nkEnumFieldDef})) do (node: PNode) -> bool:
+      syms.children &= (if node.kind == nkIdent: node else: node[0]).toDocumentSymbol()
+  return syms
+
 proc outlineDocument*(x: PNode): seq[DocumentSymbol] =
   ## Creates an outline of symbols in the document.
   ## TODO: Check if the client supports heirarchy or not
-  const used = {nkProcDef..nkIteratorDef, nkTypeDef, nkVarSection..nkConstSection}
-  var symbols: seq[DocumentSymbol]
-  x.exploreAST(ofKind(used)) do (node: PNode) -> bool:
-    if node.kind in nkVarSection..nkConstSection:
+  var symbols = newSeq[DocumentSymbol]()
+  # Explore top level decls
+  for node in x:
+    case node.kind
+    of nkVarSection..nkConstSection:
       symbols &= node.collectIdentDefs()
-      return false
-    let sym = node.toDocumentSymbol()
-    # Types have children (enum fields, type fields)
-    if node.kind == nkTypeDef:
-      sym.children &= node.collectIdentDefs()
-      node.exploreAST(ofKind({nkEnumTy})) do (node: PNode) -> bool:
-        node.exploreAST(ofKind({nkIdent, nkEnumFieldDef})) do (node: PNode) -> bool:
-          sym.children &= (if node.kind == nkIdent: node else: node[0]).toDocumentSymbol()
-    symbols &= sym
+    of nkProcDef..nkIteratorDef:
+      symbols &= node.toDocumentSymbol()
+    of nkTypeSection:
+      node.exploreAST(ofKind({nkTypeDef})) do (node: PNode) -> bool:
+        symbols &= node.collectType()
+    else: discard
   return symbols
 
 proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
   ## Returns possibly fixes for an error
   case e.kind
   of Unknown:
+    result = newSeq[CodeAction]()
     for option in e.possibleSymbols:
       result &= CodeAction(
         title: option,
@@ -240,7 +225,6 @@ proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
           )
       )
   else: discard
-
 
 func contains*(r: Range, p: Position): bool =
   ## Returns true if a position is within a range
@@ -261,9 +245,6 @@ proc findNode(p: PNode, line, col: uint, careAbout: FileIndex): Option[Range] =
   let info = p.info
   if info.line == line and info.col.uint == col and info.fileIndex == careAbout:
     var range = p.initRange()
-    # Handle cases where the end info is 0
-    if range.`end` < range.start and p.kind == nkExprColonExpr:
-      return some p[1].initRange()
     return some range
 
   for child in p:
@@ -303,9 +284,9 @@ proc findUsages*(handle: RequestHandle, file: string, pos: Position): Option[Sym
   debug(outp)
   for lineStr in outp.splitLines():
     var
-      file: string
-      line: int
-      col: int
+      file = ""
+      line = -1
+      col = -1
     # TODO: Fix navigator.nim so that the RHS of identDefs isn't considered a decl
     if lineStr.scanf("def$s$+($i, $i)", file, line, col):
       s.def = (file, initPos(line, col))
