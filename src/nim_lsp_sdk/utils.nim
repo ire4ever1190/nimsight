@@ -81,4 +81,8 @@ macro mixed*(objs: varargs[typed]): typedesc =
   ))
   result = newStmtList(result, name)
 
+template `->`*(a, b: bool): bool =
+  ## Therefore operator
+  not a or b
+
 export union

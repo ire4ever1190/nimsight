@@ -12,3 +12,4 @@ bin = @["nim_lsp_sdk"]
 
 requires "nim >= 2.1.99"
 requires "threading#c69e13a"
+requires "minilru#c353041"
