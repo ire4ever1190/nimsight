@@ -19,4 +19,7 @@ let
   anotherLet = 2
 const someConst = "hello"
 
+block:
+  let insideBlock = 9
+
 #> :wait textDocument/documentSymbol

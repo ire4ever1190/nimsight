@@ -36,27 +36,17 @@ cmds = coroutine.create(function ()
   for line in cmds_file:lines() do
     -- Check if we are waiting on an LSP message
     match = string.match(line, ":wait%s+(.+)")
-    println("Running", line)
     if match ~= nil then
       while coroutine.yield() ~= match do
       end
     else
       -- Just run the command
-      println("Running")
       local status, err = pcall(function () vim.cmd(line) end)
       if err then
         println(status, err)
       end
-      println("Ran")
-      -- Custom commands, we want to wait until they are finished
---       if custom_cmds[line] then
---         println("Waiting")
---         while coroutine.yield() ~= line do
---         end
---       end
     end
   end
-  println("Finished")
 end)
 
 
@@ -65,7 +55,6 @@ function register_cmd(name, func, extra)
   custom_cmds[cmd_name] = true
   local function wrapped(opts)
     func(opts)
-    println("Resumng")
     coroutine.resume(cmds, cmd_name)
   end
   vim.api.nvim_create_user_command(name, wrapped, extra)
@@ -94,7 +83,6 @@ function in_range(range)
   local end_col = range["end"]["character"]
   local start_line  = range["start"]["line"]
   local end_line = range["end"]["line"]
-  println("(    ", start_line, ":", start_col, ", ", end_line, ":", end_col , " | ",r, c,  "   )")
   return (r == start_line and c >= start_col) or -- Start line
          (r == end_line and c < end_col) or -- Finish line
          (r > start_line and r < end_line) -- In-between
@@ -106,7 +94,6 @@ end
 function listen_for(meth, handler)
   vim.lsp.handlers[meth] = function (idk, result, ctx, config)
     handler(idk, result, ctx, config)
-    println("Polling for " .. meth)
     coroutine.resume(cmds, meth)
   end
 end
@@ -172,7 +159,6 @@ end, {})
 register_cmd('Symbols', function (opts, continue)
   local args = { textDocument = vim.lsp.util.make_text_document_params() }
   vim.lsp.buf_request_all(0, "textDocument/documentSymbol", args, function (result)
-    println(dump(result))
     for _, symbol in ipairs(result[1]["result"]) do
       println(symbol["name"])
       if symbol["children"] ~= nil then
