@@ -35,6 +35,7 @@ addHandler(newLSPLogger())
 var lsp = initServer("CTN")
 
 lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
+  debug(params.text)
   h.checkFile(params)
 
 lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:

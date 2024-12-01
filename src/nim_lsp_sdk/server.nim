@@ -183,7 +183,11 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     InitializeResult(
       capabilities: ServerCapabilities(
         codeActionProvider: true,
-        documentSymbolProvider: ServerCapabilities.documentSymbolProvider.init(true)
+        documentSymbolProvider: ServerCapabilities.documentSymbolProvider.init(true),
+        textDocumentSync: ServerCapabilities.textDocumentSync.init(TextDocumentSyncOptions(
+          openClose: true,
+          change: Full
+        ))
       ),
       serverInfo: ServerInfo(
         name: r.server[].name,

@@ -394,9 +394,20 @@ type
     ## [See Spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#documentSymbolOptions)
     label*: Option[string]
 
+  TextDocumentSyncKind* = enum
+    ## [See Spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentSyncKind)
+    None
+    Full
+    Incremental
+
+  TextDocumentSyncOptions* = object
+    openClose*: bool
+    change*: TextDocumentSyncKind
+
   ServerCapabilities* = object
     codeActionProvider*: bool
     documentSymbolProvider*: Union[(bool, DocumentSymbolOptions)]
+    textDocumentSync*: Union[(bool, TextDocumentSyncOptions)]
 
   ClientCapabilities* = object
 
