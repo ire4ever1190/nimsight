@@ -30,7 +30,7 @@ type
     id*: Option[string]
       ## ID of the request
     server: ptr Server
-      ## Pointer to the server. Please don't touch
+      ## Pointer to the server. Please don't touch (I'm trusting you)
 
 proc id(x: Message): Option[string] =
   ## Returns the ID of a message if it has one (Is a request, and ID is not null).
@@ -39,6 +39,8 @@ proc id(x: Message): Option[string] =
     let msg = RequestMessage(x)
     if msg.id.isSome() and msg.id.unsafeGet().kind != JNull:
       return some $msg.id.unsafeGet()
+
+# proc server*(x: RequestHandle): ptr Server {.inline.} = x.server
 
 proc initHandle*(id: Option[string], s: ptr Server): RequestHandle =
   RequestHandle(id: id, server: s)
@@ -124,6 +126,9 @@ proc updateFile*(s: var Server, params: DidOpenTextDocumentParams) =
   let doc = params.textDocument
   writeWith s.filesLock:
     s.files.put(doc.uri, doc.text, doc.version)
+
+proc updateFile*[T](h: RequestHandle, params: T) =
+  h.server[].updateFile(params)
 
 proc getFile*(h: RequestHandle, uri: string, version = NoVersion): string =
   readWith h.server[].filesLock:

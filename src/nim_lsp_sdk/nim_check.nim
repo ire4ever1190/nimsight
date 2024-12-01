@@ -260,12 +260,14 @@ type
 
 proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string], input = ""): tuple[output: string, code: int] =
   ## Runs a process, automatically checks if the request has ended and then stops the running process.
+  debug("Starting command")
   let process = startProcess(cmd, args=args, options = {poUsePath, poStdErrToStdOut})
   defer: process.close()
 
+  # mimic execCmdEx, need to close the stream so it sends EOF
   if input != "":
-    let inputStream = process.inputStream
-    inputStream.write(input)
+    process.inputStream().write(input)
+  close inputStream(process)
 
   while process.running and handle.isRunning:
     # Don't want to burn the thread with the isRunning check
@@ -275,6 +277,7 @@ proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string], in
     process.kill()
     discard process.waitForExit()
     raise (ref ServerError)(code: RequestCancelled)
+  debug("finished")
   return (process.outputStream().readAll(), process.peekExitCode())
 
 proc findUsages*(handle: RequestHandle, file: string, pos: Position): Option[SymbolUsage] =
@@ -311,13 +314,20 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
   ## Parses errors from `nim check` into a more structured form
   let file = handle.getFile(x)
 
-  let (outp, _) = handle.execProcess("nim", @["check"] & ourOptions & "-", input=file)
-  let (fIdx, root) = parseFile(x)
+  let (outp, exitCode) = handle.execProcess("nim", @["check"] & ourOptions & "-", input=file)
+  debug exitCode
+
+  let (fIdx, root) = parseFile(x.replace("file://", ""))
   for error in outp.split('\31'):
     let lines = error.splitLines()
     for i in 0..<lines.len:
-      let (ok, file, line, col, lvl, msg) = lines[i].scanTuple("$+($i, $i) $+: $+")
+      debug(lines[i])
+      var (ok, file, line, col, lvl, msg) = lines[i].scanTuple("$+($i, $i) $+: $+")
       let sev = lvl.toDiagnosticSeverity()
+      # stdin means its this file, so update it
+      if file == "stdinfile.nim":
+        file = x
+
       if file != x: continue
       if ok:
         let range = root.findNode(uint line, uint col - 1, fIdx)

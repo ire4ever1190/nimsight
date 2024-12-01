@@ -16,7 +16,7 @@ proc checkFile(handle: RequestHandle, params: DidOpenTextDocumentParams | DidCha
   ## Publishes `nim check` dianostics
   let doc = params.textDocument
   debug "Checking: ", doc.uri
-  let diagnostics = handle.getDiagnostics(doc.uri.replace("file://", ""))
+  let diagnostics = handle.getDiagnostics(doc.uri)
   sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
     uri: doc.uri,
     diagnostics: diagnostics
@@ -35,20 +35,22 @@ addHandler(newLSPLogger())
 var lsp = initServer("CTN")
 
 lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
-  h.server[].updateFile(params)
+  h.updateFile(params)
+  h.checkFile(params)
 
 lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
-  h.server[].updateFile(params)
+  h.updateFile(params)
+  h.checkFile(params)
 
 lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
-  discard
+  h.checkFile(params)
 
 
 lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction]:
   # Find actions for errors
   # Literal braindead implementation. Rerun the checks and try to match it up.
   # Need to do something like
-  let errors = h.getErrors(params.textDocument.uri.replace("file://", ""))
+  let errors = h.getErrors(params.textDocument.uri)
   # First we find the error that matches. Since they are parsed the same we should
   # be able to line them up exactly
   debug params.context.diagnostics.len

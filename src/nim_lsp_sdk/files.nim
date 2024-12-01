@@ -4,7 +4,7 @@
 
 import pkg/minilru
 
-import std/[strformat, options]
+import std/[strformat, options, logging]
 
 const NoVersion* = -1
 
@@ -44,9 +44,10 @@ func `[]`*(x: var Files, path: string, version = NoVersion): string {.raises: [F
   if version != NoVersion and file.version notin [version, NoVersion]:
     raise (ref InvalidFileVersion)(msg: "'{path}' version has invalid version")
 
-func put*(x: var Files, path, data: string, version: int) =
+proc put*(x: var Files, path, data: string, version: int) =
   ## Adds a file into the file cache
+  debug(fmt"Adding {path}")
   x.put(path, File(version: version, content: data))
 
-func put*(x: var Files, path, data: string) =
+proc put*(x: var Files, path, data: string) =
   x.put(path, data, NoVersion)
