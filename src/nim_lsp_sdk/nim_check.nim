@@ -258,10 +258,15 @@ type
     def*: (string, Position)
     usages*: seq[(string, Position)]
 
-proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string]): tuple[output: string, code: int] =
+proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string], input = ""): tuple[output: string, code: int] =
   ## Runs a process, automatically checks if the request has ended and then stops the running process.
   let process = startProcess(cmd, args=args, options = {poUsePath, poStdErrToStdOut})
   defer: process.close()
+
+  if input != "":
+    let inputStream = process.inputStream
+    inputStream.write(input)
+
   while process.running and handle.isRunning:
     # Don't want to burn the thread with the isRunning check
     sleep 10
@@ -294,19 +299,25 @@ proc findUsages*(handle: RequestHandle, file: string, pos: Position): Option[Sym
       s.usages &= (file, initPos(line, col))
   return some s
 
+func toDiagnosticSeverity(x: sink string): Option[DiagnosticSeverity] =
+  ## Returns the diagnostic severity for a string e.g. Hint, Warning
+  case x
+  of "Hint": some DiagnosticSeverity.Hint
+  of "Warning": some DiagnosticSeverity.Warning
+  of "Error": some DiagnosticSeverity.Error
+  else: none(DiagnosticSeverity)
+
 proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
-  let (outp, statusCode) = handle.execProcess("nim", @["check"] & ourOptions & x)
+  let file = handle.getFile(x)
+
+  let (outp, _) = handle.execProcess("nim", @["check"] & ourOptions & "-", input=file)
   let (fIdx, root) = parseFile(x)
   for error in outp.split('\31'):
     let lines = error.splitLines()
     for i in 0..<lines.len:
       let (ok, file, line, col, lvl, msg) = lines[i].scanTuple("$+($i, $i) $+: $+")
-      let sev = case lvl
-                of "Hint": some DiagnosticSeverity.Hint
-                of "Warning": some DiagnosticSeverity.Warning
-                of "Error": some DiagnosticSeverity.Error
-                else: none(DiagnosticSeverity)
+      let sev = lvl.toDiagnosticSeverity()
       if file != x: continue
       if ok:
         let range = root.findNode(uint line, uint col - 1, fIdx)

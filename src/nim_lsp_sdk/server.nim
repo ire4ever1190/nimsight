@@ -1,6 +1,6 @@
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation]
 
-import utils, types, protocol, hooks, params, ./logging
+import utils, types, protocol, hooks, params, ./logging, ./files
 
 import threading/[channels, rwlock]
 
@@ -18,7 +18,10 @@ type
       ## Table of request ID to whether they have been cancelled or not.
       ## i.e. if the value is false, then the request has been cancelled by the server.
       ## It is the request handlers just to check this on a regular basis.
-      # TODO: Replace with a list. Should then be able to make it lockfree and just use
+    filesLock: RwLock
+      ## Lock on [files]
+    files {.guard: filesLock.}: Files
+      ## Stores all the files in use by the server
     name*: string
     version*: string
 
@@ -108,6 +111,25 @@ proc updateRequestRunning(s: var Server, id: string, val: bool) =
   writeWith s.inProgressLock:
     s.inProgress[id] = val
 
+proc updateFile(s: var Server, params: DidChangeTextDocumentParams) =
+  ## Updates file cache with updates
+  let doc = params.textDocument
+  assert params.contentChanges.len == 1, "Only full updates are supported"
+  writeWith s.filesLock:
+    for change in params.contentChanges:
+      s.files.put(doc.uri, change.text, doc.version)
+
+proc updateFile*(s: var Server, params: DidOpenTextDocumentParams) =
+  ## Updates file cache with an open item
+  let doc = params.textDocument
+  writeWith s.filesLock:
+    s.files.put(doc.uri, doc.text, doc.version)
+
+proc getFile*(h: RequestHandle, uri: string, version = NoVersion): string =
+  readWith h.server[].filesLock:
+    return h.server[].files[uri, version]
+
+
 proc workerThread(server: ptr Server) {.thread.} =
   ## Initialises a worker thread and then handles messages
   ## Implemented via a work stealing message queue
@@ -142,10 +164,13 @@ proc workerThread(server: ptr Server) {.thread.} =
 proc poll*(server: var Server) =
   ## Polls constantly for messages and handles responding.
   # initialize the workers.
-  # TODO: Add way to configure this
+  # TODO: Some jobs need some kind of affinity to maintain ordering.
+  #       e.g. content change events NEED to be applied in order for incremental sync
+  # TODO: Add way to configure number of workers
   var threads: array[2, Thread[ptr Server]]
   for t in threads.mitems:
     t.createThread(workerThread, addr server)
+
   while true:
     let request = readRequest()
     let id = request.id
@@ -174,7 +199,9 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     name: name,
     inProgressLock: createRwLock(),
     version: version,
-    queue: newChan[Message]()
+    queue: newChan[Message](),
+    filesLock: createRwLock(),
+    files: initFiles(20) # TODO: Make this configurable
   )
 
   result.listen("initialize") do (r: RequestHandle, params: InitializeParams) -> InitializeResult:

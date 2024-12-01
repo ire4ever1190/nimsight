@@ -35,14 +35,13 @@ addHandler(newLSPLogger())
 var lsp = initServer("CTN")
 
 lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
-  debug(params.text)
-  h.checkFile(params)
+  h.server[].updateFile(params)
 
 lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
-  h.checkFile(params)
+  h.server[].updateFile(params)
 
 lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
-  h.checkFile(params)
+  discard
 
 
 lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction]:
