@@ -43,6 +43,7 @@ func `[]`*(x: var Files, path: string, version = NoVersion): string {.raises: [F
   # Version check
   if version != NoVersion and file.version notin [version, NoVersion]:
     raise (ref InvalidFileVersion)(msg: "'{path}' version has invalid version")
+  return file.content
 
 proc put*(x: var Files, path, data: string, version: int) =
   ## Adds a file into the file cache
