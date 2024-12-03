@@ -221,9 +221,14 @@ type
     def*: (string, Position)
     usages*: seq[(string, Position)]
 
+proc raiseCancelled() {.raises: [ServerError].} =
+    raise (ref ServerError)(code: RequestCancelled)
+
 proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string], input = "", workingDir=""): tuple[output: string, code: int] =
   ## Runs a process, automatically checks if the request has ended and then stops the running process.
-  debug "Working directory ", workingDir
+  # Don't start a process if the handle is already cancelled
+  if not handle.isRunning(): raiseCancelled()
+
   let process = startProcess(
     cmd,
     args=args,
@@ -244,7 +249,7 @@ proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string], in
     # TODO: Let the caller handle it, for now we play it simple
     process.kill()
     discard process.waitForExit()
-    raise (ref ServerError)(code: RequestCancelled)
+    raiseCancelled()
   return (process.outputStream().readAll(), process.peekExitCode())
 
 proc findUsages*(handle: RequestHandle, file: string, pos: Position): Option[SymbolUsage] =

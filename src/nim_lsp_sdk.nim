@@ -7,7 +7,7 @@ import nim_lsp_sdk/[nim_check, server, protocol]
 import nim_lsp_sdk/[types, params, methods, utils, logging]
 
 import std/locks
-
+import std/os
 using s: var Server
 
 proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
@@ -45,6 +45,7 @@ lsp.listen(sendDiagnostics) do (h: RequestHandle, params: DocumentUri) {.gcsafe.
         debug "Cancelling previous"
         h.server[].cancel(currentCheck)
         currentCheck = h.id.unsafeGet()
+    sleep 100
     h.checkFile(params)
   except ServerError as e:
     # Ignore cancellations
