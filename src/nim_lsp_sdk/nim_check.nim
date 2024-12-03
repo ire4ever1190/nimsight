@@ -1,48 +1,11 @@
 ## Utils for working with Nim check
 import std/[osproc, strformat, logging, strscans, strutils, options, sugar, jsonutils, os, streams, tables]
-import types, hooks, server, params
+import types, hooks, server, params, errors
 
 import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos]
 
+
 const ourOptions = @["--hint:Conf:off", "--hint:SuccessX:off", "--processing:off", "--errorMax:0", "--unitSep:on", "--colors:off"]
-
-
-
-# proc makeCheckOptions(file: string): string =
-  # result = ourOptions
-  # TODO: Nimble files don't have system/nimscript included by default, include it
-  # if file.
-
-type
-  ErrorKind* = enum
-    Any
-      ## Fallback for when we cant parse the error.
-      ## We just display the full message for this
-      ## TypeMisMatch
-      ## Type mismatch when calling a proc
-    Unknown
-      ## Unknown symbol
-    AmbigiousIdentifier
-      ## Trying to use an identifer when it could come from multiple modules
-    # TODO: case statement missing cases, deprecated/unused
-
-  ParsedError* = object
-    ## Error message put into a structure that I can more easily display
-    ## Wish the compiler had a structured errors mode
-    name*: string
-      ## The name given in the first line
-    range*: Range
-      ## Start/end position that the error corresponds to
-    severity*: DiagnosticSeverity
-    file*: string
-    case kind*: ErrorKind
-    of Any:
-      fullText*: string
-    # of TypeMisMatch:
-      # args: seq[string]
-        ## The args that its getting called with
-    of Unknown, AmbigiousIdentifier:
-      possibleSymbols*: seq[string]
 
 
 proc nameNode(x: PNode): PNode =

@@ -6,19 +6,16 @@ import nim_lsp_sdk/[nim_check, server, protocol]
 
 import nim_lsp_sdk/[types, params, methods, utils, logging]
 
-# var fileLog = newFileLogger("/tmp/errors.log")
-# addHandler(fileLog)
+import std/locks
 
 using s: var Server
 
-
-proc checkFile(handle: RequestHandle, params: DidOpenTextDocumentParams | DidChangeTextDocumentParams | DidSaveTextDocumentParams) {.gcsafe.} =
+proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
-  let doc = params.textDocument
-  debug "Checking: ", doc.uri
-  let diagnostics = handle.getDiagnostics(doc.uri)
+  debug "Checking: ", uri
+  let diagnostics = handle.getDiagnostics(uri)
   sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
-    uri: doc.uri,
+    uri: uri,
     diagnostics: diagnostics
   ))
 
@@ -34,17 +31,35 @@ addHandler(newLSPLogger())
 
 var lsp = initServer("CTN")
 
+var
+  currentCheckLock: Lock
+  currentCheck {.guard: currentCheckLock.}: string
+
+initLock(currentCheckLock)
+
+lsp.listen(sendDiagnostics) do (h: RequestHandle, params: DocumentUri) {.gcsafe.}:
+  try:
+    # Cancel any previous request, then register this as the latest
+    {.gcsafe.}:
+      withLock currentCheckLock:
+        debug "Cancelling previous"
+        h.server[].cancel(currentCheck)
+        currentCheck = h.id.unsafeGet()
+    h.checkFile(params)
+  except ServerError as e:
+    # Ignore cancellations
+    if e.code != RequestCancelled:
+      raise e
+
 lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
   h.updateFile(params)
-  h.checkFile(params)
+  h.server[].queue(sendDiagnostics.newMessage(params.textDocument.uri))
 
 lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
   h.updateFile(params)
-  h.checkFile(params)
 
 lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
-  h.checkFile(params)
-
+  discard
 
 lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction]:
   # Find actions for errors

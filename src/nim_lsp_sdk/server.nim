@@ -4,6 +4,8 @@ import utils, types, protocol, hooks, params, ./logging, ./files
 
 import threading/[channels, rwlock]
 
+import pkg/anano
+
 type
   Handler* = proc (handle: RequestHandle, x: JsonNode): Option[JsonNode] {.gcsafe.}
     ## Handler for a method. Uses JsonNode to perform type elision,
@@ -27,9 +29,9 @@ type
 
   RequestHandle* = object
     ## Handle to a request. Used for getting information
-    id*: Option[string]
+    id: Option[string]
       ## ID of the request
-    server: ptr Server
+    server*: ptr Server
       ## Pointer to the server. Please don't touch (I'm trusting you)
 
 proc id(x: Message): Option[string] =
@@ -40,6 +42,7 @@ proc id(x: Message): Option[string] =
     if msg.id.isSome() and msg.id.unsafeGet().kind != JNull:
       return some $msg.id.unsafeGet()
 
+func id*(h: RequestHandle): Option[string] {.inline.} = h.id
 # proc server*(x: RequestHandle): ptr Server {.inline.} = x.server
 
 proc initHandle*(id: Option[string], s: ptr Server): RequestHandle =
@@ -70,7 +73,7 @@ proc listen*(server: var Server, event: static[string], handler: getMethodHandle
   ## Adds a handler for an event
   type
     ParamType = getMethodParam(event)
-    ReturnType = typeof(handler(RequestHandle(), ParamType()))
+    ReturnType = typeof(handler(RequestHandle(), default(ParamType)))
   proc inner(handle: RequestHandle, x: JsonNode): Option[JsonNode] {.stacktrace: off, gcsafe.} =
     ## Conversion of the JSON and catching any errors.
     ## TODO: Maybe use error return and then raises: []?
@@ -93,6 +96,14 @@ proc listen*(server: var Server, event: static[string], handler: getMethodHandle
       raise (ref ServerError)(code: RequestFailed, msg: e.msg)
 
   server.addHandler(event, inner)
+
+proc newMessage*(event: static[string], params: getMethodParam(event)): Message =
+  ## Constructs a message
+  if event.isNotification:
+    result = NotificationMessage(`method`: event, params: some params.toJson())
+  else:
+    let id = $genNanoID()
+    result = RequestMessage(`method`: event, params: params.toJson(), id: some id.toJson())
 
 proc meth(x: Message): string =
   if x of RequestMessage:
@@ -165,6 +176,18 @@ proc workerThread(server: ptr Server) {.thread.} =
       writeWith server[].inProgressLock:
         server[].inProgress.del(id.unsafeGet())
 
+proc queue*(server: var Server, msg: sink Message) =
+  ## Queues a request to be handled by the server
+  let id = msg.id
+  if id.isSome():
+    # Register request with server so it can be tracked
+    server.updateRequestRunning($id.unsafeGet(), true)
+  # Start running the message
+  server.queue.send(unsafeIsolate(ensureMove(msg)))
+
+proc cancel*(server: var Server, id: string) =
+  ## Cancels a request in the server
+  server.updateRequestRunning(id, false)
 
 proc poll*(server: var Server) =
   ## Polls constantly for messages and handles responding.
@@ -178,7 +201,6 @@ proc poll*(server: var Server) =
 
   while true:
     let request = readRequest()
-    let id = request.id
     if request of RequestMessage:
       info "Recieved method: ", RequestMessage(request).`method`
 
@@ -186,15 +208,9 @@ proc poll*(server: var Server) =
     # could be filled up which means the cancelRequest wouldn't get handled
     if request of NotificationMessage and NotificationMessage(request).`method` == "$/cancelRequest":
       info "Cancelling ", request.params["id"]
-      server.updateRequestRunning($request.params["id"], false)
+      server.cancel($request.params["id"])
     else:
-      if id.isSome():
-        # Add to in-progress
-        server.updateRequestRunning($id.unsafeGet(), true)
-
-      server.queue.send(unsafeIsolate(ensureMove(request)))
-
-
+      server.queue(request)
 
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =

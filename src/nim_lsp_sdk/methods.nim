@@ -13,3 +13,6 @@ const
   codeAction* = "textDocument/codeAction"
     ## Client is requesting actions it can take
   documentSymbols* = "textDocument/documentSymbol"
+  sendDiagnostics* = "extension/sendDiagnostics"
+    ## Custom method for making the server start sending diagnostics.
+    ## Needed when client doesn't support pull diagnostics (kate)
