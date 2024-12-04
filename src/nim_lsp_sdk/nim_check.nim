@@ -2,7 +2,7 @@
 import std/[osproc, strformat, logging, strscans, strutils, options, sugar, jsonutils, os, streams, tables]
 import types, hooks, server, params, errors
 
-import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos]
+import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos, llstream]
 
 
 const ourOptions = @["--hint:Conf:off", "--hint:SuccessX:off", "--processing:off", "--errorMax:0", "--unitSep:on", "--colors:off"]
@@ -64,22 +64,21 @@ proc ignoreErrors(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) 
   # TODO: Don't ignore errors
   discard
 
-proc parseFile*(x: DocumentUri): (FileIndex, PNode) {.gcsafe.} =
+proc parseFile*(h: RequestHandle, x: DocumentUri): (FileIndex, PNode) {.gcsafe.} =
   ## Parses a document. This is only lexcial and is done
   ## to get start/end ranges for errors.
   var conf = newConfigRef()
+  let content = h.getFile(x)
   let fileIdx = fileInfoIdx(conf, AbsoluteFile x)
   var p: Parser
   {.gcsafe.}:
-    if setupParser(p, fileIdx, newIdentCache(), conf):
-      p.lex.errorHandler = ignoreErrors
-      result = (fileIdx, parseAll(p))
-      closeParser(p)
-    else:
-      raise (ref CatchableError)(msg: "Failed to setup parser")
+    parser.openParser(p, fileIdx, llStreamOpen(content), newIdentCache(), conf)
+    p.lex.errorHandler = ignoreErrors
+    result = (fileIdx, parseAll(p))
+    closeParser(p)
 
-proc parseFile*(x: TextDocumentIdentifier): PNode =
-  x.uri.replace("file://", "").parseFile()[1]
+proc parseFile*(h: RequestHandle, x: TextDocumentIdentifier): PNode =
+  h.parseFile(x.uri)[1]
 
 
 proc exploreAST*(x: PNode, filter: proc (x: PNode): bool,
@@ -292,7 +291,7 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
     workingDir=x.replace("file://").parentDir()
   )
 
-  let (fIdx, root) = parseFile(x.replace("file://", ""))
+  let (fIdx, root) = handle.parseFile(x)
   for error in outp.split('\31'):
     let lines = error.splitLines()
     for i in 0..<lines.len:
