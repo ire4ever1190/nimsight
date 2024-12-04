@@ -1,5 +1,5 @@
 ## Utils for working with Nim check
-import std/[osproc, strformat, logging, strscans, strutils, options, sugar, jsonutils, os, streams, tables]
+import std/[osproc, strformat, logging, strscans, strutils, options, sugar, jsonutils, os, streams, tables, paths]
 import types, hooks, server, params, errors
 
 import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos, llstream]
@@ -182,7 +182,7 @@ proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
         diagnostics: some @[diagnotic],
         edit: some WorkspaceEdit(
             changes: some toTable({
-              e.file: @[TextEdit(range: e.range, newText: option)]
+              DocumentURI(e.file): @[TextEdit(range: e.range, newText: option)]
             })
           )
       )
@@ -251,12 +251,12 @@ proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string], in
     raiseCancelled()
   return (process.outputStream().readAll(), process.peekExitCode())
 
-proc findUsages*(handle: RequestHandle, file: string, pos: Position): Option[SymbolUsage] =
+proc findUsages*(handle: RequestHandle, file: DocumentURI, pos: Position): Option[SymbolUsage] =
   ## Uses --defusages to find symbol usage/defintion
   ## Uses IC so isn't braindead slow which is cool, but zero clue
   ## what stability is like lol
   # Use refc to get around https://github.com/nim-lang/Nim/issues/22205
-  let (outp, status) = handle.execProcess("nim", @["check", "--ic:on", "--mm:refc", fmt"--defusages:{file},{pos.line + 1},{pos.character + 1}"] & ourOptions & file)
+  let (outp, status) = handle.execProcess("nim", @["check", "--ic:on", "--mm:refc", fmt"--defusages:{file},{pos.line + 1},{pos.character + 1}"] & ourOptions & $file.path)
   echo outp
   if status == QuitFailure: return
   var s = SymbolUsage()
@@ -288,7 +288,7 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
     "nim",
     @["check"] & ourOptions & "-",
     input=file,
-    workingDir=x.replace("file://").parentDir()
+    workingDir = $x.path.parentDir()
   )
 
   let (fIdx, root) = handle.parseFile(x)
@@ -299,8 +299,8 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
       let sev = lvl.toDiagnosticSeverity()
       # stdin means its this file, so update it
       if file == "stdinfile.nim":
-        file = x
-      if file != x: continue
+        file = $x.path
+      if file != $x.path: continue
       if ok:
         let range = root.findNode(uint line, uint col - 1, fIdx)
         # Couldn't match it to a node, so don't trust sending the error out.
@@ -344,16 +344,3 @@ proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.g
         severity: some err.severity,
         message: $err,
       )
-
-
-when isMainModule:
-  const fil = "/home/jake/Documents/projects/Nim/compiler/semcall.nim"
-
-  let (_, ff) = parseFile(fil)
-
-  proc printLineInfo(x: PNode) =
-    if initRange(x).`end`.line == 0:
-      echo x.kind, " ", initRange(x)
-    for child in x:
-      printLineInfo(child)
-  printLineInfo(ff)

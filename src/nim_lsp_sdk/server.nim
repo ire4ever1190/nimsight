@@ -141,7 +141,7 @@ proc updateFile*(s: var Server, params: DidOpenTextDocumentParams) =
 proc updateFile*[T](h: RequestHandle, params: T) =
   h.server[].updateFile(params)
 
-proc getFile*(h: RequestHandle, uri: string, version = NoVersion): string =
+proc getFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): string =
   readWith h.server[].filesLock:
     return h.server[].files[uri, version]
 

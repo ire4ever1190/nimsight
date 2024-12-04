@@ -4,7 +4,7 @@
 
 import pkg/minilru
 
-import errors
+import ./[errors, types]
 
 import std/[strformat, options, logging]
 
@@ -23,7 +23,7 @@ type
     errors*: seq[ParsedError]
       ## Errors for the current content
 
-  Files* = LruCache[string, File]
+  Files* = LruCache[DocumentURI, File]
     ## Mapping of path to files.
     ## Since extra context will (eventually) be stored here we use an LRU
     ## cache so the memory doesn't blow out
@@ -41,7 +41,7 @@ func initFiles*(size: int): Files =
   ## Constructs the files. Small wrapper since I'll add more logic later
   Files.init(size)
 
-func rawGet(x: var Files, path: string, version = NoVersion): File =
+func rawGet(x: var Files, path: DocumentURI, version = NoVersion): File =
   let res = x.get(path)
   # Convert result into an exception
   if res.isNone():
@@ -52,12 +52,16 @@ func rawGet(x: var Files, path: string, version = NoVersion): File =
     raise (ref InvalidFileVersion)(msg: "'{path}' version has invalid version")
   return file
 
-func `[]`*(x: var Files, path: string, version = NoVersion): string {.raises: [FileNotInCache, InvalidFileVersion].} =
+func `[]`*(
+  x: var Files,
+  path: DocumentURI,
+  version = NoVersion
+): string {.raises: [FileNotInCache, InvalidFileVersion].} =
   ## Returns a file and checks its version is correct.
   ## If [NoVersion] is passed for [version] then it doesn't check the versions
   return x.rawGet(path, version).content
 
-proc put*(x: var Files, path, data: string, version: int) =
+proc put*(x: var Files, path: DocumentURI, data: string, version: int) =
   ## Adds a file into the file cache
   debug(fmt"Adding {path}")
   x.put(path, File(version: version, content: data))
@@ -65,5 +69,5 @@ proc put*(x: var Files, path, data: string, version: int) =
 # proc set*(x: var Files, path: string, errors: sink seq[ParsedError]) =
 #   x.rawGet(path)
 
-proc put*(x: var Files, path, data: string) =
+proc put*(x: var Files, path: DocumentURI, data: string) =
   x.put(path, data, NoVersion)

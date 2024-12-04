@@ -78,12 +78,12 @@ lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[Co
   debug result.len
 
 lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionParams) -> Option[Location] {.gcsafe.}:
-  let usages = h.findUsages(params.textDocument.uri.replace("file://"), params.position)
+  let usages = h.findUsages(params.textDocument.uri, params.position)
   debug($usages)
   if usages.isSome():
     let usages = usages.unsafeGet()
     return some Location(
-      uri: "file://" & usages.def[0],
+      uri: DocumentURI("file://" & usages.def[0]),
       range: Range(
         start: usages.def[1],
         `end`: Position(line: usages.def[1].line, character: usages.def[1].character + 1)
