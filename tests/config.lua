@@ -131,14 +131,14 @@ end
 -- Register commands to make writing tests easier
 
 -- Prints diagnostics on the current line
-vim.api.nvim_create_user_command("Diag", function (opts)
+register_cmd("Diag", function (opts)
   for _, diag in ipairs(get_diagnostics()) do
     println(diag["message"])
   end
 end, { })
 
 -- Applies a code action
-vim.api.nvim_create_user_command("CodeAction", function (opts)
+register_cmd("CodeAction", function (opts)
   local pos = vim.api.nvim_win_get_cursor(0)
   vim.lsp.buf.code_action({
     context = {
@@ -151,7 +151,7 @@ vim.api.nvim_create_user_command("CodeAction", function (opts)
 end, {})
 
 -- Saves the file in a knowable place
-vim.api.nvim_create_user_command("SaveTemp", function (opts)
+register_cmd("SaveTemp", function (opts)
   local curr_file = vim.api.nvim_buf_get_name(0):gsub("%.nim", ".out")
   vim.cmd(":w! " .. curr_file)
 end, {})
