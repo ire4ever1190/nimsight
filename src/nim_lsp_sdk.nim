@@ -4,7 +4,7 @@ import std/macros
 import "$nim"/compiler/ast
 import nim_lsp_sdk/[nim_check, server, protocol]
 
-import nim_lsp_sdk/[types, params, methods, utils, logging]
+import nim_lsp_sdk/[types, params, methods, utils, logging, errors]
 
 import std/locks
 import std/os
@@ -63,7 +63,7 @@ lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocument
 lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
   discard
 
-lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction]:
+lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction] {.gcsafe.}:
   # Find actions for errors
   # Literal braindead implementation. Rerun the checks and try to match it up.
   # Need to do something like

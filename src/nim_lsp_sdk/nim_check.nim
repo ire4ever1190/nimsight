@@ -134,7 +134,7 @@ proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
         diagnostics: some @[diagnotic],
         edit: some WorkspaceEdit(
             changes: some toTable({
-              DocumentURI("file://" & e.file): @[TextEdit(range: e.range, newText: option)]
+              DocumentURI("file://" & e.file): @[e.node.editWith(newIdentNode(option))]
             })
           )
       )
@@ -154,12 +154,12 @@ func contains*(r: Range, p: PNode): bool =
   ## Returns true if a node is within a range
   p.info.initPos in r
 
-proc findNode(p: PNode, line, col: uint, careAbout: FileIndex): Option[Range] =
-  ## Finds the node at (line, col) and returns the range that corresponds to it
+proc findNode(p: PNode, line, col: uint, careAbout: FileIndex): Option[PNode] =
+  ## Finds the node at (line, col)
+  # TODO: Do we need file index? Not like we can parse across files atm
   let info = p.info
   if info.line == line and info.col.uint == col and info.fileIndex == careAbout:
-    var range = p.initRange()
-    return some range
+    return some p
 
   for child in p:
     let res = findNode(child, line, col, careAbout)
@@ -255,11 +255,11 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
         file = $x.path
       if file != $x.path: continue
       if ok:
-        let range = root.findNode(uint line, uint col - 1, fIdx)
+        let node = root.findNode(uint line, uint col - 1, fIdx)
         # Couldn't match it to a node, so don't trust sending the error out.
         # Need to have some system, since macros could give an error anywhere and
         # we do want to show it
-        if range.isNone(): continue
+        if node.isNone(): continue
         var err: ParsedError
         # See if we can parse some more data from the error message
         if msg.startsWith("undeclared identifier"):
@@ -285,7 +285,7 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
           err = ParsedError(kind: Any, fullText: fullText)
         # And add the diagnotic
         err.name = msg
-        err.range = range.unsafeGet()
+        err.node = node.unsafeGet()
         err.severity = sev.unsafeGet()
         err.file = file
         result &= err

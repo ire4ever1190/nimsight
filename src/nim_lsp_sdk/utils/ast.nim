@@ -21,7 +21,7 @@ proc parseFile*(x: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
     p.lex.errorHandler = ignoreErrors
     result = (fileIdx, parseAll(p))
 
-proc nameNode(x: PNode): PNode =
+proc nameNode*(x: PNode): PNode =
   ## Returns the node that stores the name
   case x.kind
   of nkIdent:
@@ -37,12 +37,12 @@ func initPos*(x: TLineInfo): Position =
   ## Converts Nim [TLineInfo] into LSP [Position]
   initPos(uint x.line, uint x.col + 1)
 
-proc name(x: PNode): string =
+proc name*(x: PNode): string =
   ## Returns the name of a node.
   # TODO: Handle unpacking postfix etc
   return x.nameNode.ident.s
 
-func initRange(p: PNode): Range =
+func initRange*(p: PNode): Range =
   ## Creates a range from a node
   result = Range(start: p.info.initPos(), `end`: p.endInfo.initPos())
   if result.`end` < result.start:
@@ -66,4 +66,5 @@ proc newIdentNode*(x: string): PNode =
 
 proc editWith*(original: PNode, update: PNode): TextEdit =
   ## Creates an edit that will replace `original` with `update`.
-  TextEdit(range: original.initRange, newText: update.renderTree({renderNonExportedFields}))
+  {.gcsafe.}:
+    return TextEdit(range: original.initRange, newText: update.renderTree({renderNonExportedFields}))
