@@ -1,0 +1,2 @@
+#> :wait textDocument/publishDiagnostics
+#> :Shutdown

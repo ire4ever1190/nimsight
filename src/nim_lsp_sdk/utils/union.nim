@@ -55,8 +55,6 @@ macro oneOf*(x: typedesc): typedesc =
   result = bindSym($types[0])
   for typ in types[1..^1]:
     result = nnkInfix.newTree(bindSym"|", result, bindSym($typ, brOpen))
-  echo ""
-  echo result.treeRepr
 
 type
   Union*[T] = createUnion(T)
@@ -90,7 +88,6 @@ macro `case`*[T: Union](obj: T): untyped =
     "Can only match on a variable, not an expression".error(variable)
   var whenStmt = nnkWhenStmt.newTree()
   for branch in obj[1..^1]:
-    echo branch.treeRepr
     if branch[0].kind != nnkIdent:
       "Selector must be a single type".error(branch)
     # Add in a new symbol that is the union restricted to the single type
@@ -114,7 +111,6 @@ proc types(x: NimNode): seq[tuple[field: NimNode, typ: NimNode]] =
   let
     recCase = x.getType[1][2][0]
   for branch in recCase[1..^1]:
-    echo branch[1][0].getTypeInst().treeRepr
     result &= (branch[1][0], branch[1][0].getTypeInst())
 
 proc discriminator(x: NimNode): NimNode =
@@ -123,8 +119,6 @@ proc discriminator(x: NimNode): NimNode =
 
 macro branches*(typ: typedesc, body: untyped) =
   ## Unrolls the body into each type
-  echo "here"
-  echo typ.treeRepr
   let
     recCase = typ.getType[1][2][0]
     discrim = recCase[0]
@@ -134,7 +128,6 @@ macro branches*(typ: typedesc, body: untyped) =
     let typeTemplate = quote do:
       type `tempName` = `typ`
     result &= newBlockStmt(newEmptyNode(), newStmtList(typeTemplate, body.copy()))
-  echo result.toStrLit
 
 macro init*[T: Union, V](x: typedesc[T], val: V): untyped =
   ## Initialises a union with a value
@@ -152,8 +145,6 @@ macro init*[T: Union, V](x: typedesc[T], val: V): untyped =
 proc fromJsonHook*(a: var Union, b: JsonNode, opt = JOptions()) =
   ## Goes through each type branch in the union and attempts to parse from JSON.
   ## First type that passes is used
-  static:
-    echo "here"
   type U = type(a)
   branches(type(a)):
     var val: it

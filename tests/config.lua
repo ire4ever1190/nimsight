@@ -178,5 +178,8 @@ vim.api.nvim_create_autocmd('TextChanged', {
   end,
 })
 
+register_cmd("Shutdown", function (opts)
+  vim.lsp.stop_client(vim.lsp.get_clients())
+end, {})
 
 

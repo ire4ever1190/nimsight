@@ -130,8 +130,11 @@ registerServerMessage(savedNotification, DidSaveTextDocumentParams, void, true)
 registerServerMessage(changedNotification, DidChangeTextDocumentParams, void, true)
 registerServerMessage(initialNotification, InitializedParams, void, true)
 registerServerMessage(symbolDefinition, TextDocumentPositionParams, Option[Location], true)
-registerServerMessage(sendDiagnostics, DocumentURI, void, true)
 # TODO: Add ability to support goofy returns like (Command | CodeAction)[]
 # Support is basically there, think its just the parsing that needs to be changed
 registerServerMessage(codeAction, CodeActionParams, seq[CodeAction], false)
 registerServerMessage(documentSymbols, DocumentSymbolParams, seq[DocumentSymbol], false)
+
+# These are internal messages that aren't sent by the client
+registerServerMessage(sendDiagnostics, DocumentURI, void, true)
+registerServerMessage("shutdown", string, void, true)

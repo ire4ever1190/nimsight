@@ -32,4 +32,3 @@ type
         ## The args that its getting called with
     of Unknown, AmbigiousIdentifier:
       possibleSymbols*: seq[string]
-

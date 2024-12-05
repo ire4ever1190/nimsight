@@ -124,3 +124,7 @@ anotherLet
 someConst
 """ in output
   check "insideBlock" notin output
+
+test "Shutdown":
+  let output = nvimTest("shutdown")
+  check "quit with exit code 1" notin output
