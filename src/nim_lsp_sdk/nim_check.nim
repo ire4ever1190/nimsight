@@ -182,7 +182,7 @@ proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
         diagnostics: some @[diagnotic],
         edit: some WorkspaceEdit(
             changes: some toTable({
-              DocumentURI(e.file): @[TextEdit(range: e.range, newText: option)]
+              DocumentURI("file://" & e.file): @[TextEdit(range: e.range, newText: option)]
             })
           )
       )

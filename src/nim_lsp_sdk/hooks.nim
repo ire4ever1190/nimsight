@@ -1,6 +1,6 @@
 ## JSON hooks for parsing special structures
 
-import std/[json, jsonutils, options, strtabs]
+import std/[json, jsonutils, options, strtabs, tables]
 
 import types
 
@@ -21,7 +21,13 @@ proc fromJsonHook*(ev: var TextDocumentContentChangeEvent, json: JsonNode, optio
 
 proc toJsonHook*(c: ErrorCode, options: ToJsonOptions): JsonNode =
   return newJInt(c.ord)
-  
+
+proc toJsonHook*[V](t: Table[DocumentURI, V], opt = initToJsonOptions()): JsonNode =
+  result = newJObject()
+  for k, v in pairs(t):
+    # not sure if $k has overhead for string
+    result[$k] = toJson(v, opt)
+
 proc toJsonHook*(r: ResponseMessage, options: ToJsonOptions): JsonNode =
   result = %* {
     "jsonrpc": "2.0",
