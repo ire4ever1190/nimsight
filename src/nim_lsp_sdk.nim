@@ -58,6 +58,7 @@ lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocum
 
 lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
   h.updateFile(params)
+  h.server[].queue(sendDiagnostics.newMessage(params.textDocument.uri))
 
 lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
   discard
@@ -69,17 +70,13 @@ lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[Co
   let errors = h.getErrors(params.textDocument.uri)
   # First we find the error that matches. Since they are parsed the same we should
   # be able to line them up exactly
-  debug params.context.diagnostics.len
   for err in errors:
     for diag in params.context.diagnostics:
       if err.range == diag.range:
         result &= err.createFix(diag)
-        debug("Found error")
-  debug result.len
 
 lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionParams) -> Option[Location] {.gcsafe.}:
   let usages = h.findUsages(params.textDocument.uri, params.position)
-  debug($usages)
   if usages.isSome():
     let usages = usages.unsafeGet()
     return some Location(

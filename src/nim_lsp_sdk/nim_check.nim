@@ -260,7 +260,6 @@ proc findUsages*(handle: RequestHandle, file: DocumentURI, pos: Position): Optio
   echo outp
   if status == QuitFailure: return
   var s = SymbolUsage()
-  debug(outp)
   for lineStr in outp.splitLines():
     var
       file = ""
