@@ -2,6 +2,8 @@
 import std/[osproc, strformat, logging, strscans, strutils, options, sugar, jsonutils, os, streams, tables, paths]
 import types, hooks, server, params, errors
 
+import utils/ast
+
 import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos, llstream]
 
 
@@ -59,27 +61,6 @@ func `$`(e: ParsedError): string =
     for possible in e.possibleSymbols:
       result &= &"- {possible}\n"
     result.setLen(result.len - 1)
-
-proc ignoreErrors(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) =
-  # TODO: Don't ignore errors
-  discard
-
-proc parseFile*(h: RequestHandle, x: DocumentUri): (FileIndex, PNode) {.gcsafe.} =
-  ## Parses a document. This is only lexcial and is done
-  ## to get start/end ranges for errors.
-  var conf = newConfigRef()
-  let content = h.getFile(x)
-  let fileIdx = fileInfoIdx(conf, AbsoluteFile x)
-  var p: Parser
-  {.gcsafe.}:
-    parser.openParser(p, fileIdx, llStreamOpen(content), newIdentCache(), conf)
-    p.lex.errorHandler = ignoreErrors
-    result = (fileIdx, parseAll(p))
-    closeParser(p)
-
-proc parseFile*(h: RequestHandle, x: TextDocumentIdentifier): PNode =
-  h.parseFile(x.uri)[1]
-
 
 proc exploreAST*(x: PNode, filter: proc (x: PNode): bool,
                    handler: proc (x: PNode): bool) {.effectsOf: [filter, handler].}=
@@ -282,11 +263,13 @@ func toDiagnosticSeverity(x: sink string): Option[DiagnosticSeverity] =
 
 proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
-  let file = handle.getFile(x)
+  let file = handle.getRawFile(x)
+  if file.errors.len > 0: return file.errors
+
   let (outp, exitCode) = handle.execProcess(
     "nim",
     @["check"] & ourOptions & "-",
-    input=file,
+    input=file.content,
     workingDir = $x.path.parentDir()
   )
 
@@ -335,6 +318,7 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
         err.severity = sev.unsafeGet()
         err.file = file
         result &= err
+  file.errors = result
 
 proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
   for err in handle.getErrors(x):

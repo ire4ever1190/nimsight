@@ -89,7 +89,7 @@ lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionP
 
 
 lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) -> seq[DocumentSymbol] {.gcsafe.}:
-  return h.parseFile(params.textDocument).outLineDocument()
+  return h.parseFile(params.textDocument.uri).ast.outLineDocument()
 
 lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams):
   logging.info("Client initialised")
