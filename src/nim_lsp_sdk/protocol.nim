@@ -32,12 +32,13 @@ initLock(stdoutLock)
 
 proc readRequest*(): Message =
   ## Returns either a [RequestMessage] or [NotificationMessage]
+  const options = JOptions(allowMissingKeys: true)
   let data = readPayload()
   try:
     if "id" in data: # Notifications dont have an ID
-      return data.jsonTo(RequestMessage)
+      return data.jsonTo(RequestMessage, options)
     else:
-      return data.jsonTo(NotificationMessage)
+      return data.jsonTo(NotificationMessage, options)
   except CatchableError as e:
     raise (ref ServerError)(code: ParseError, msg: e.msg)
 
@@ -66,7 +67,6 @@ proc sendPayload[T](payload: sink T) {.gcsafe.} =
 
   let respBody = $resp
   respBody.writeResponse()
-  # debug("Written: \n" & respBody)
 
 
 proc respond*(request: Message, err: ServerError) =

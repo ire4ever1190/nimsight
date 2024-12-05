@@ -1,4 +1,4 @@
-import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation]
+import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics]
 
 import utils, types, protocol, hooks, params, ./logging, ./files
 
@@ -24,6 +24,8 @@ type
       ## Lock on [files]
     files {.guard: filesLock.}: Files
       ## Stores all the files in use by the server
+    running: Atomic[bool]
+      ## Tracks if the server is shutting down or not
     name*: string
     version*: string
 
@@ -57,6 +59,8 @@ proc isRunning*(r: RequestHandle): bool =
   readWith r.server[].inProgressLock:
     # The ID should never be removed until the request is removed from the server
     return r.server[].inProgress[r.id.unsafeGet()]
+
+proc isRunning*(s: var Server): bool {.inline.} = s.running.load()
 
 const NimblePkgVersion {.strdefine.} = "Unknown"
   ## Default to using the version defined by nimble
@@ -154,6 +158,9 @@ proc workerThread(server: ptr Server) {.thread.} =
   # Start the worker loop
   while true:
     let request = server[].queue.recv()
+    # Don't process if the server is shutting down
+    if not server[].isRunning: break
+
     let id = request.id
     # TODO: Break this out into a generic handleMessage() proc
     # We are only reading this so it should be fine right??
@@ -171,7 +178,6 @@ proc workerThread(server: ptr Server) {.thread.} =
     else:
       request.respond(ServerError(code: MethodNotFound, msg: fmt"Nothing to handle {request.meth}"))
     # Remove the request from the in-progress list.
-    # Stops it massively growing for no reason
     if id.isSome:
       writeWith server[].inProgressLock:
         server[].inProgress.del(id.unsafeGet())
@@ -204,13 +210,36 @@ proc poll*(server: var Server) =
     if request of RequestMessage:
       info "Recieved method: ", RequestMessage(request).`method`
 
-    # We special case handling $/cancelRequest since the worker queue
-    # could be filled up which means the cancelRequest wouldn't get handled
-    if request of NotificationMessage and NotificationMessage(request).`method` == "$/cancelRequest":
+    # Few get special cased since we want them handled no matter what.
+    # Rest get sent into worker queue
+    case request.meth
+    of "$/cancelRequest":
+      # We special case handling $/cancelRequest since the worker queue
+      # could be filled up which means the cancelRequest wouldn't get handled
       info "Cancelling ", request.params["id"]
       server.cancel($request.params["id"])
+    of "shutdown":
+      info "Shutting down"
+      # First notify all workers that they need to shutdown.
+      server.running.store(false)
+      writeWith server.inProgressLock:
+        for running in server.inProgress.mvalues:
+          running = false
+      # Send a shutdown message. Each worker needs to read a message
+      # so that it checks the running flag again.
+      for _ in 0..threads.high:
+        server.queue("shutdown".newMessage(""))
+      # And make sure every thread stops
+      joinThreads threads
+      request.respond(newJNull())
+    of "exit":
+      quit int(server.isRunning)
     else:
-      server.queue(request)
+      # Spec says we should error if shutting down
+      if server.isRunning:
+        server.queue(request)
+      else:
+        request.respond(ServerError(code: InvalidRequest, msg: "Server is shutting down"))
 
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
@@ -224,6 +253,7 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     filesLock: createRwLock(),
     files: initFiles(20) # TODO: Make this configurable
   )
+  result.running.store(true)
 
   result.listen("initialize") do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
     # Find what is supported depending on what handlers are registered.
