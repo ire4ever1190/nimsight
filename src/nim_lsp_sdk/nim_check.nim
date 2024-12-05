@@ -6,9 +6,21 @@ import utils/ast
 
 import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos, llstream]
 
+## Common options for checking errors in a file
+const ourOptions = @[
+  "--hint:Conf:off",
+  "--hint:SuccessX:off",
+  "--processing:off",
+  "--errorMax:0",
+  "--unitSep:on",
+  "--colors:off"
+]
 
-const ourOptions = @["--hint:Conf:off", "--hint:SuccessX:off", "--processing:off", "--errorMax:0", "--unitSep:on", "--colors:off"]
-
+func makeOptions(file: DocumentURI): seq[string] =
+  ## Returns a list of options that should be applied to a file type
+  result = @[]
+  if file.path.splitFile.ext in [".nimble", ".nims"]:
+    result &= ["--include:system/nimscript"]
 
 proc nameNode(x: PNode): PNode =
   ## Returns the node that stores the name
@@ -268,7 +280,7 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
 
   let (outp, exitCode) = handle.execProcess(
     "nim",
-    @["check"] & ourOptions & "-",
+    @["check"] & ourOptions & makeOptions(x) & "-",
     input=file.content,
     workingDir = $x.path.parentDir()
   )

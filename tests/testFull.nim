@@ -77,7 +77,7 @@ proc getCommands(path: string): seq[string] =
 proc nvimTest(path: string): string =
   # Write the code to a temp file to be read by the test
   let
-    file = string(currentSourcePath.parentDir().Path / Path"scripts" / Path(path).changeFileExt("nim"))
+    file = string(currentSourcePath.parentDir().Path / Path"scripts" / Path(path).addFileExt("nim"))
     # Parse the commands. Make sure we always exit at the end
     commands = file.getCommands()
   # Extract the commands from the source
@@ -128,3 +128,8 @@ someConst
 test "Shutdown":
   let output = nvimTest("shutdown")
   check "quit with exit code 1" notin output
+
+suite "Nimscript":
+  test "Nimble file loads without error":
+    let output = nvimTest("nimble.nimble")
+    check "<NO ERRORS FOUND>" in output
