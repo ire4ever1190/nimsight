@@ -29,7 +29,7 @@ proc runTest(inputFile: string): string =
     output = p.outputStream().readAll()
   result = output.replace("<====>", "\n")
   checkpoint result
-  assert exitCode == QuitSuccess
+  assert exitCode == QuitSuccess, $exitCode
   # We also want to check the output file (if applicable)
   if Path(inputFile).changeFileExt("expected").fileExists:
     checkDiff(inputFile)

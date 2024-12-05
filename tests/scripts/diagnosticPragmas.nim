@@ -7,3 +7,4 @@
          ^ :Diag ]#
 {.error: "Error is shown.".} #[
           ^ :Diag ]#
+

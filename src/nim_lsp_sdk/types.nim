@@ -1,4 +1,4 @@
-import std/[options, json, tables]
+import std/[options, json, tables, hashes, paths, strutils]
 
 import utils
 
@@ -71,7 +71,7 @@ type
     `type`*: MessageType
     message*: string
 
-  DocumentURI* = string
+  DocumentURI* = distinct string
   Position* = object
     ## Position in a doucment.
     ##
@@ -394,9 +394,20 @@ type
     ## [See Spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#documentSymbolOptions)
     label*: Option[string]
 
+  TextDocumentSyncKind* = enum
+    ## [See Spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentSyncKind)
+    None
+    Full
+    Incremental
+
+  TextDocumentSyncOptions* = object
+    openClose*: bool
+    change*: TextDocumentSyncKind
+
   ServerCapabilities* = object
     codeActionProvider*: bool
     documentSymbolProvider*: Union[(bool, DocumentSymbolOptions)]
+    textDocumentSync*: Union[(bool, TextDocumentSyncOptions)]
 
   ClientCapabilities* = object
 
@@ -406,3 +417,11 @@ type
 
 func `<`*(a, b: Position): bool =
   return a.line < b.line or  (a.line == b.line and a.character < b.character)
+
+proc hash*(x: DocumentURI): Hash {.borrow.}
+proc `==`*(a, b: DocumentURI): bool {.borrow.}
+proc `$`*(x: DocumentURI): string {.borrow.}
+
+func path*(x: DocumentURI): Path =
+    ## Converts to a path
+    result = x.string.replace("file://", "").Path

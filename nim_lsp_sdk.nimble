@@ -12,3 +12,5 @@ bin = @["nim_lsp_sdk"]
 
 requires "nim >= 2.1.99"
 requires "threading#c69e13a"
+requires "https://github.com/status-im/nim-minilru#c353041"
+requires "anano >= 0.2.0 & < 0.3.0"

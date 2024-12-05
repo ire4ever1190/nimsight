@@ -1,8 +1,10 @@
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation]
 
-import utils, types, protocol, hooks, params, ./logging
+import utils, types, protocol, hooks, params, ./logging, ./files
 
 import threading/[channels, rwlock]
+
+import pkg/anano
 
 type
   Handler* = proc (handle: RequestHandle, x: JsonNode): Option[JsonNode] {.gcsafe.}
@@ -18,16 +20,19 @@ type
       ## Table of request ID to whether they have been cancelled or not.
       ## i.e. if the value is false, then the request has been cancelled by the server.
       ## It is the request handlers just to check this on a regular basis.
-      # TODO: Replace with a list. Should then be able to make it lockfree and just use
+    filesLock: RwLock
+      ## Lock on [files]
+    files {.guard: filesLock.}: Files
+      ## Stores all the files in use by the server
     name*: string
     version*: string
 
   RequestHandle* = object
     ## Handle to a request. Used for getting information
-    id*: Option[string]
+    id: Option[string]
       ## ID of the request
-    server: ptr Server
-      ## Pointer to the server. Please don't touch
+    server*: ptr Server
+      ## Pointer to the server. Please don't touch (I'm trusting you)
 
 proc id(x: Message): Option[string] =
   ## Returns the ID of a message if it has one (Is a request, and ID is not null).
@@ -36,6 +41,9 @@ proc id(x: Message): Option[string] =
     let msg = RequestMessage(x)
     if msg.id.isSome() and msg.id.unsafeGet().kind != JNull:
       return some $msg.id.unsafeGet()
+
+func id*(h: RequestHandle): Option[string] {.inline.} = h.id
+# proc server*(x: RequestHandle): ptr Server {.inline.} = x.server
 
 proc initHandle*(id: Option[string], s: ptr Server): RequestHandle =
   RequestHandle(id: id, server: s)
@@ -65,7 +73,7 @@ proc listen*(server: var Server, event: static[string], handler: getMethodHandle
   ## Adds a handler for an event
   type
     ParamType = getMethodParam(event)
-    ReturnType = typeof(handler(RequestHandle(), ParamType()))
+    ReturnType = typeof(handler(RequestHandle(), default(ParamType)))
   proc inner(handle: RequestHandle, x: JsonNode): Option[JsonNode] {.stacktrace: off, gcsafe.} =
     ## Conversion of the JSON and catching any errors.
     ## TODO: Maybe use error return and then raises: []?
@@ -89,6 +97,14 @@ proc listen*(server: var Server, event: static[string], handler: getMethodHandle
 
   server.addHandler(event, inner)
 
+proc newMessage*(event: static[string], params: getMethodParam(event)): Message =
+  ## Constructs a message
+  if event.isNotification:
+    result = NotificationMessage(`method`: event, params: some params.toJson())
+  else:
+    let id = $genNanoID()
+    result = RequestMessage(`method`: event, params: params.toJson(), id: some id.toJson())
+
 proc meth(x: Message): string =
   if x of RequestMessage:
     return RequestMessage(x).`method`
@@ -107,6 +123,28 @@ proc updateRequestRunning(s: var Server, id: string, val: bool) =
   ## Updates the request running statusmi
   writeWith s.inProgressLock:
     s.inProgress[id] = val
+
+proc updateFile(s: var Server, params: DidChangeTextDocumentParams) =
+  ## Updates file cache with updates
+  let doc = params.textDocument
+  assert params.contentChanges.len == 1, "Only full updates are supported"
+  writeWith s.filesLock:
+    for change in params.contentChanges:
+      s.files.put(doc.uri, change.text, doc.version)
+
+proc updateFile*(s: var Server, params: DidOpenTextDocumentParams) =
+  ## Updates file cache with an open item
+  let doc = params.textDocument
+  writeWith s.filesLock:
+    s.files.put(doc.uri, doc.text, doc.version)
+
+proc updateFile*[T](h: RequestHandle, params: T) =
+  h.server[].updateFile(params)
+
+proc getFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): string =
+  readWith h.server[].filesLock:
+    return h.server[].files[uri, version]
+
 
 proc workerThread(server: ptr Server) {.thread.} =
   ## Initialises a worker thread and then handles messages
@@ -138,17 +176,31 @@ proc workerThread(server: ptr Server) {.thread.} =
       writeWith server[].inProgressLock:
         server[].inProgress.del(id.unsafeGet())
 
+proc queue*(server: var Server, msg: sink Message) =
+  ## Queues a request to be handled by the server
+  let id = msg.id
+  if id.isSome():
+    # Register request with server so it can be tracked
+    server.updateRequestRunning($id.unsafeGet(), true)
+  # Start running the message
+  server.queue.send(unsafeIsolate(ensureMove(msg)))
+
+proc cancel*(server: var Server, id: string) =
+  ## Cancels a request in the server
+  server.updateRequestRunning(id, false)
 
 proc poll*(server: var Server) =
   ## Polls constantly for messages and handles responding.
   # initialize the workers.
-  # TODO: Add way to configure this
+  # TODO: Some jobs need some kind of affinity to maintain ordering.
+  #       e.g. content change events NEED to be applied in order for incremental sync
+  # TODO: Add way to configure number of workers
   var threads: array[2, Thread[ptr Server]]
   for t in threads.mitems:
     t.createThread(workerThread, addr server)
+
   while true:
     let request = readRequest()
-    let id = request.id
     if request of RequestMessage:
       info "Recieved method: ", RequestMessage(request).`method`
 
@@ -156,15 +208,9 @@ proc poll*(server: var Server) =
     # could be filled up which means the cancelRequest wouldn't get handled
     if request of NotificationMessage and NotificationMessage(request).`method` == "$/cancelRequest":
       info "Cancelling ", request.params["id"]
-      server.updateRequestRunning($request.params["id"], false)
+      server.cancel($request.params["id"])
     else:
-      if id.isSome():
-        # Add to in-progress
-        server.updateRequestRunning($id.unsafeGet(), true)
-
-      server.queue.send(unsafeIsolate(ensureMove(request)))
-
-
+      server.queue(request)
 
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
@@ -174,7 +220,9 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     name: name,
     inProgressLock: createRwLock(),
     version: version,
-    queue: newChan[Message]()
+    queue: newChan[Message](),
+    filesLock: createRwLock(),
+    files: initFiles(20) # TODO: Make this configurable
   )
 
   result.listen("initialize") do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
@@ -183,7 +231,11 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     InitializeResult(
       capabilities: ServerCapabilities(
         codeActionProvider: true,
-        documentSymbolProvider: ServerCapabilities.documentSymbolProvider.init(true)
+        documentSymbolProvider: ServerCapabilities.documentSymbolProvider.init(true),
+        textDocumentSync: ServerCapabilities.textDocumentSync.init(TextDocumentSyncOptions(
+          openClose: true,
+          change: Full
+        ))
       ),
       serverInfo: ServerInfo(
         name: r.server[].name,

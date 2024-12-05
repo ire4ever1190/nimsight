@@ -1,5 +1,4 @@
 #> :w
-#> :wait textDocument/publishDiagnostics
 #> :Symbols
 
 proc bar(x: string) = discard

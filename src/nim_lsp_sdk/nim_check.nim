@@ -1,48 +1,11 @@
 ## Utils for working with Nim check
-import std/[osproc, strformat, logging, strscans, strutils, options, sugar, jsonutils, os, streams, tables]
-import types, hooks, server, params
+import std/[osproc, strformat, logging, strscans, strutils, options, sugar, jsonutils, os, streams, tables, paths]
+import types, hooks, server, params, errors
 
-import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos]
+import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos, llstream]
+
 
 const ourOptions = @["--hint:Conf:off", "--hint:SuccessX:off", "--processing:off", "--errorMax:0", "--unitSep:on", "--colors:off"]
-
-
-
-# proc makeCheckOptions(file: string): string =
-  # result = ourOptions
-  # TODO: Nimble files don't have system/nimscript included by default, include it
-  # if file.
-
-type
-  ErrorKind* = enum
-    Any
-      ## Fallback for when we cant parse the error.
-      ## We just display the full message for this
-      ## TypeMisMatch
-      ## Type mismatch when calling a proc
-    Unknown
-      ## Unknown symbol
-    AmbigiousIdentifier
-      ## Trying to use an identifer when it could come from multiple modules
-    # TODO: case statement missing cases, deprecated/unused
-
-  ParsedError* = object
-    ## Error message put into a structure that I can more easily display
-    ## Wish the compiler had a structured errors mode
-    name*: string
-      ## The name given in the first line
-    range*: Range
-      ## Start/end position that the error corresponds to
-    severity*: DiagnosticSeverity
-    file*: string
-    case kind*: ErrorKind
-    of Any:
-      fullText*: string
-    # of TypeMisMatch:
-      # args: seq[string]
-        ## The args that its getting called with
-    of Unknown, AmbigiousIdentifier:
-      possibleSymbols*: seq[string]
 
 
 proc nameNode(x: PNode): PNode =
@@ -101,22 +64,21 @@ proc ignoreErrors(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) 
   # TODO: Don't ignore errors
   discard
 
-proc parseFile*(x: DocumentUri): (FileIndex, PNode) {.gcsafe.} =
+proc parseFile*(h: RequestHandle, x: DocumentUri): (FileIndex, PNode) {.gcsafe.} =
   ## Parses a document. This is only lexcial and is done
   ## to get start/end ranges for errors.
   var conf = newConfigRef()
+  let content = h.getFile(x)
   let fileIdx = fileInfoIdx(conf, AbsoluteFile x)
   var p: Parser
   {.gcsafe.}:
-    if setupParser(p, fileIdx, newIdentCache(), conf):
-      p.lex.errorHandler = ignoreErrors
-      result = (fileIdx, parseAll(p))
-      closeParser(p)
-    else:
-      raise (ref CatchableError)(msg: "Failed to setup parser")
+    parser.openParser(p, fileIdx, llStreamOpen(content), newIdentCache(), conf)
+    p.lex.errorHandler = ignoreErrors
+    result = (fileIdx, parseAll(p))
+    closeParser(p)
 
-proc parseFile*(x: TextDocumentIdentifier): PNode =
-  x.uri.replace("file://", "").parseFile()[1]
+proc parseFile*(h: RequestHandle, x: TextDocumentIdentifier): PNode =
+  h.parseFile(x.uri)[1]
 
 
 proc exploreAST*(x: PNode, filter: proc (x: PNode): bool,
@@ -220,7 +182,7 @@ proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
         diagnostics: some @[diagnotic],
         edit: some WorkspaceEdit(
             changes: some toTable({
-              "file://" & e.file: @[TextEdit(range: e.range, newText: option)]
+              DocumentURI("file://" & e.file): @[TextEdit(range: e.range, newText: option)]
             })
           )
       )
@@ -258,10 +220,27 @@ type
     def*: (string, Position)
     usages*: seq[(string, Position)]
 
-proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string]): tuple[output: string, code: int] =
+proc raiseCancelled() {.raises: [ServerError].} =
+    raise (ref ServerError)(code: RequestCancelled)
+
+proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string], input = "", workingDir=""): tuple[output: string, code: int] =
   ## Runs a process, automatically checks if the request has ended and then stops the running process.
-  let process = startProcess(cmd, args=args, options = {poUsePath, poStdErrToStdOut})
+  # Don't start a process if the handle is already cancelled
+  if not handle.isRunning(): raiseCancelled()
+
+  let process = startProcess(
+    cmd,
+    args=args,
+    options = {poUsePath, poStdErrToStdOut},
+    workingDir=workingDir
+  )
   defer: process.close()
+
+  # mimic execCmdEx, need to close the stream so it sends EOF
+  if input != "":
+    process.inputStream().write(input)
+  close inputStream(process)
+
   while process.running and handle.isRunning:
     # Don't want to burn the thread with the isRunning check
     sleep 10
@@ -269,19 +248,18 @@ proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string]): t
     # TODO: Let the caller handle it, for now we play it simple
     process.kill()
     discard process.waitForExit()
-    raise (ref ServerError)(code: RequestCancelled)
+    raiseCancelled()
   return (process.outputStream().readAll(), process.peekExitCode())
 
-proc findUsages*(handle: RequestHandle, file: string, pos: Position): Option[SymbolUsage] =
+proc findUsages*(handle: RequestHandle, file: DocumentURI, pos: Position): Option[SymbolUsage] =
   ## Uses --defusages to find symbol usage/defintion
   ## Uses IC so isn't braindead slow which is cool, but zero clue
   ## what stability is like lol
   # Use refc to get around https://github.com/nim-lang/Nim/issues/22205
-  let (outp, status) = handle.execProcess("nim", @["check", "--ic:on", "--mm:refc", fmt"--defusages:{file},{pos.line + 1},{pos.character + 1}"] & ourOptions & file)
+  let (outp, status) = handle.execProcess("nim", @["check", "--ic:on", "--mm:refc", fmt"--defusages:{file},{pos.line + 1},{pos.character + 1}"] & ourOptions & $file.path)
   echo outp
   if status == QuitFailure: return
   var s = SymbolUsage()
-  debug(outp)
   for lineStr in outp.splitLines():
     var
       file = ""
@@ -294,20 +272,34 @@ proc findUsages*(handle: RequestHandle, file: string, pos: Position): Option[Sym
       s.usages &= (file, initPos(line, col))
   return some s
 
+func toDiagnosticSeverity(x: sink string): Option[DiagnosticSeverity] =
+  ## Returns the diagnostic severity for a string e.g. Hint, Warning
+  case x
+  of "Hint": some DiagnosticSeverity.Hint
+  of "Warning": some DiagnosticSeverity.Warning
+  of "Error": some DiagnosticSeverity.Error
+  else: none(DiagnosticSeverity)
+
 proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
-  let (outp, statusCode) = handle.execProcess("nim", @["check"] & ourOptions & x)
-  let (fIdx, root) = parseFile(x)
+  let file = handle.getFile(x)
+  let (outp, exitCode) = handle.execProcess(
+    "nim",
+    @["check"] & ourOptions & "-",
+    input=file,
+    workingDir = $x.path.parentDir()
+  )
+
+  let (fIdx, root) = handle.parseFile(x)
   for error in outp.split('\31'):
     let lines = error.splitLines()
     for i in 0..<lines.len:
-      let (ok, file, line, col, lvl, msg) = lines[i].scanTuple("$+($i, $i) $+: $+")
-      let sev = case lvl
-                of "Hint": some DiagnosticSeverity.Hint
-                of "Warning": some DiagnosticSeverity.Warning
-                of "Error": some DiagnosticSeverity.Error
-                else: none(DiagnosticSeverity)
-      if file != x: continue
+      var (ok, file, line, col, lvl, msg) = lines[i].scanTuple("$+($i, $i) $+: $+")
+      let sev = lvl.toDiagnosticSeverity()
+      # stdin means its this file, so update it
+      if file == "stdinfile.nim":
+        file = $x.path
+      if file != $x.path: continue
       if ok:
         let range = root.findNode(uint line, uint col - 1, fIdx)
         # Couldn't match it to a node, so don't trust sending the error out.
@@ -351,16 +343,3 @@ proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.g
         severity: some err.severity,
         message: $err,
       )
-
-
-when isMainModule:
-  const fil = "/home/jake/Documents/projects/Nim/compiler/semcall.nim"
-
-  let (_, ff) = parseFile(fil)
-
-  proc printLineInfo(x: PNode) =
-    if initRange(x).`end`.line == 0:
-      echo x.kind, " ", initRange(x)
-    for child in x:
-      printLineInfo(child)
-  printLineInfo(ff)
