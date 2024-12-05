@@ -2,7 +2,7 @@
 local test_folder = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ":h")
 local custom_cmds = {}
 
-local nim_ext_pat = "%.nim%w+"
+local nim_ext_pat = "%.nim%w*"
 
 function dump(o)
    if type(o) == 'table' then
@@ -159,7 +159,7 @@ end, {})
 
 -- Saves the file in a knowable place
 register_cmd("SaveTemp", function (opts)
-  local curr_file = vim.api.nvim_buf_get_name(0):gsub("%.nim%w+", ".out")
+  local curr_file = vim.api.nvim_buf_get_name(0):gsub(nim_ext_pat, ".out")
   vim.cmd(":w! " .. curr_file)
 end, {})
 
