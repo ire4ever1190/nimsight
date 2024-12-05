@@ -2,7 +2,7 @@
 #> :wait textDocument/publishDiagnostics
 
 version       = "0.1.0" #[
-         ^ :Diag ]#
+   ^ :Diag ]#
 author        = "Jake Leahy"
 description   = "SDK for creating LSP servers"
 license       = "MIT"
