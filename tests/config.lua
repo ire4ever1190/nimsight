@@ -2,6 +2,8 @@
 local test_folder = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ":h")
 local custom_cmds = {}
 
+local nim_ext_pat = "%.nim%w+"
+
 function dump(o)
    if type(o) == 'table' then
       local s = '{ '
@@ -27,7 +29,7 @@ end
 -- We create a coroutine so that we can have it wait on events.
 -- Must be initially called when the server is initialised
 cmds = coroutine.create(function ()
-  local curr_file = vim.api.nvim_buf_get_name(0):gsub("%.nim", ".vim")
+  local curr_file = vim.api.nvim_buf_get_name(0):gsub(nim_ext_pat, ".vim")
   local cmds_file = io.open(curr_file)
   if cmds_file == nil then
     println("Couldn't load", curr_file)
@@ -132,8 +134,13 @@ end
 
 -- Prints diagnostics on the current line
 register_cmd("Diag", function (opts)
+  local found = false
   for _, diag in ipairs(get_diagnostics()) do
     println(diag["message"])
+    found = true
+  end
+  if not found then
+    println("<NO ERRORS FOUND>")
   end
 end, { })
 
@@ -152,7 +159,7 @@ end, {})
 
 -- Saves the file in a knowable place
 register_cmd("SaveTemp", function (opts)
-  local curr_file = vim.api.nvim_buf_get_name(0):gsub("%.nim", ".out")
+  local curr_file = vim.api.nvim_buf_get_name(0):gsub("%.nim%w+", ".out")
   vim.cmd(":w! " .. curr_file)
 end, {})
 
