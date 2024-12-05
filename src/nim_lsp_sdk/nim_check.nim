@@ -22,47 +22,6 @@ func makeOptions(file: DocumentURI): seq[string] =
   if file.path.splitFile.ext in [".nimble", ".nims"]:
     result &= ["--include:system/nimscript"]
 
-proc nameNode(x: PNode): PNode =
-  ## Returns the node that stores the name
-  case x.kind
-  of nkIdent:
-    x
-  of nkPostFix:
-    x[1].nameNode
-  of nkProcDef, nkFuncDef, nkMethodDef, nkMacroDef, nkTypeDef, nkAccQuoted, nkIdentDefs:
-    x[namePos].nameNode
-  else:
-    raise (ref ValueError)(msg: fmt"Can't find name for {x.kind}")
-
-proc name(x: PNode): string =
-  ## Returns the name of a node.
-  # TODO: Handle unpacking postfix etc
-  return x.nameNode.ident.s
-
-proc initPos(line: SomeInteger, col: SomeInteger): Position =
-  ## Creates a position from a line/col that is 1 indexed
-  result = Position(character: uint col - 1)
-  # Handle underflows
-  if line != 0:
-    result.line = uint line - 1
-
-
-func initPos(x: TLineInfo): Position =
-  initPos(uint x.line, uint x.col + 1)
-
-func initRange(p: PNode): Range =
-  ## Creates a range from a node
-  result = Range(start: p.info.initPos(), `end`: p.endInfo.initPos())
-  if result.`end` < result.start:
-    # The parser fails to set this correctly in a few spots.
-    # Attempt to make it usable
-    case p.kind
-    of nkIdent:
-      result.`end`.line = result.start.line
-      result.`end`.character = result.start.character + p.name.len.uint
-    else:
-      result.`end` = result.start
-
 func `$`(e: ParsedError): string =
   result &= e.name & "\n"
   case e.kind
