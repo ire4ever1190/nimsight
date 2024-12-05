@@ -1,6 +1,7 @@
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics]
 
 import utils, types, protocol, hooks, params, ./logging, ./files
+import utils/ast
 
 import threading/[channels, rwlock]
 
@@ -145,9 +146,16 @@ proc updateFile*(s: var Server, params: DidOpenTextDocumentParams) =
 proc updateFile*[T](h: RequestHandle, params: T) =
   h.server[].updateFile(params)
 
-proc getFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): string =
+proc getRawFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): StoredFile =
   readWith h.server[].filesLock:
-    return h.server[].files[uri, version]
+    return h.server[].files.rawGet(uri, version)
+
+proc getFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): string =
+  h.getRawFile(uri, version).content
+
+proc parseFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): ParsedFile =
+  readWith h.server[].filesLock:
+    return h.server[].files.parseFile(uri)
 
 
 proc workerThread(server: ptr Server) {.thread.} =

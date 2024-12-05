@@ -4,6 +4,7 @@
 
 import pkg/minilru
 
+import utils/ast
 import ./[errors, types]
 
 import std/[strformat, options, logging]
@@ -13,17 +14,17 @@ import "$nim"/compiler/ast
 const NoVersion* = -1
 
 type
-  File = ref object
+  StoredFile* = ref object
     version* = NoVersion
       ## Version specified by the client
     content*: string
       ## File content. This is stored in memory for simplicity sake
-    ast*: PNode
+    ast*: ParsedFile
       ## AST of the content.
     errors*: seq[ParsedError]
       ## Errors for the current content
 
-  Files* = LruCache[DocumentURI, File]
+  Files* = LruCache[DocumentURI, StoredFile]
     ## Mapping of path to files.
     ## Since extra context will (eventually) be stored here we use an LRU
     ## cache so the memory doesn't blow out
@@ -41,7 +42,7 @@ func initFiles*(size: int): Files =
   ## Constructs the files. Small wrapper since I'll add more logic later
   Files.init(size)
 
-func rawGet(x: var Files, path: DocumentURI, version = NoVersion): File =
+func rawGet*(x: var Files, path: DocumentURI, version = NoVersion): StoredFile =
   let res = x.get(path)
   # Convert result into an exception
   if res.isNone():
@@ -61,10 +62,18 @@ func `[]`*(
   ## If [NoVersion] is passed for [version] then it doesn't check the versions
   return x.rawGet(path, version).content
 
+proc parseFile*(x: var Files, path: DocumentURI, version = NoVersion): ParsedFile =
+  ## Parses the file, and returns it. Returns cached AST if file hasn't
+  ## changed
+  let data = x.rawGet(path, version)
+  if data.ast.ast == nil:
+    data.ast = path.parseFile(data.content)
+  return data.ast
+
 proc put*(x: var Files, path: DocumentURI, data: string, version: int) =
   ## Adds a file into the file cache
   debug(fmt"Adding {path}")
-  x.put(path, File(version: version, content: data))
+  x.put(path, StoredFile(version: version, content: data))
 
 # proc set*(x: var Files, path: string, errors: sink seq[ParsedError]) =
 #   x.rawGet(path)
