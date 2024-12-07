@@ -61,7 +61,7 @@ proc findNode*(p: PNode, line, col: uint, careAbout: FileIndex): Option[PNode] =
   # TODO: Do we need file index? Not like we can parse across files atm
   let info = p.info
   if info.line == line and info.col.uint == col and info.fileIndex == careAbout:
-    return some p
+    result = some p
 
   for child in p:
     let res = findNode(child, line, col, careAbout)
