@@ -22,47 +22,6 @@ func makeOptions(file: DocumentURI): seq[string] =
   if file.path.splitFile.ext in [".nimble", ".nims"]:
     result &= ["--include:system/nimscript"]
 
-proc nameNode(x: PNode): PNode =
-  ## Returns the node that stores the name
-  case x.kind
-  of nkIdent:
-    x
-  of nkPostFix:
-    x[1].nameNode
-  of nkProcDef, nkFuncDef, nkMethodDef, nkMacroDef, nkTypeDef, nkAccQuoted, nkIdentDefs:
-    x[namePos].nameNode
-  else:
-    raise (ref ValueError)(msg: fmt"Can't find name for {x.kind}")
-
-proc name(x: PNode): string =
-  ## Returns the name of a node.
-  # TODO: Handle unpacking postfix etc
-  return x.nameNode.ident.s
-
-proc initPos(line: SomeInteger, col: SomeInteger): Position =
-  ## Creates a position from a line/col that is 1 indexed
-  result = Position(character: uint col - 1)
-  # Handle underflows
-  if line != 0:
-    result.line = uint line - 1
-
-
-func initPos(x: TLineInfo): Position =
-  initPos(uint x.line, uint x.col + 1)
-
-func initRange(p: PNode): Range =
-  ## Creates a range from a node
-  result = Range(start: p.info.initPos(), `end`: p.endInfo.initPos())
-  if result.`end` < result.start:
-    # The parser fails to set this correctly in a few spots.
-    # Attempt to make it usable
-    case p.kind
-    of nkIdent:
-      result.`end`.line = result.start.line
-      result.`end`.character = result.start.character + p.name.len.uint
-    else:
-      result.`end` = result.start
-
 func `$`(e: ParsedError): string =
   result &= e.name & "\n"
   case e.kind
@@ -175,7 +134,7 @@ proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
         diagnostics: some @[diagnotic],
         edit: some WorkspaceEdit(
             changes: some toTable({
-              DocumentURI("file://" & e.file): @[TextEdit(range: e.range, newText: option)]
+              DocumentURI("file://" & e.file): @[e.node.editWith(newIdentNode(option))]
             })
           )
       )
@@ -194,18 +153,6 @@ func contains*(r: Range, p: Position): bool =
 func contains*(r: Range, p: PNode): bool =
   ## Returns true if a node is within a range
   p.info.initPos in r
-
-proc findNode(p: PNode, line, col: uint, careAbout: FileIndex): Option[Range] =
-  ## Finds the node at (line, col) and returns the range that corresponds to it
-  let info = p.info
-  if info.line == line and info.col.uint == col and info.fileIndex == careAbout:
-    var range = p.initRange()
-    return some range
-
-  for child in p:
-    let res = findNode(child, line, col, careAbout)
-    if res.isSome():
-      return res
 
 type
   SymbolUsage* = object
@@ -296,11 +243,11 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
         file = $x.path
       if file != $x.path: continue
       if ok:
-        let range = root.findNode(uint line, uint col - 1, fIdx)
+        let node = root.findNode(uint line, uint col - 1, fIdx)
         # Couldn't match it to a node, so don't trust sending the error out.
         # Need to have some system, since macros could give an error anywhere and
         # we do want to show it
-        if range.isNone(): continue
+        if node.isNone(): continue
         var err: ParsedError
         # See if we can parse some more data from the error message
         if msg.startsWith("undeclared identifier"):
@@ -326,7 +273,7 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
           err = ParsedError(kind: Any, fullText: fullText)
         # And add the diagnotic
         err.name = msg
-        err.range = range.unsafeGet()
+        err.node = node.unsafeGet()
         err.severity = sev.unsafeGet()
         err.file = file
         result &= err

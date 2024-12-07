@@ -1,4 +1,7 @@
 import types
+
+import utils/ast
+
 import "$nim"/compiler/ast
 
 type
@@ -20,8 +23,7 @@ type
     ## Wish the compiler had a structured errors mode
     name*: string
       ## The name given in the first line
-    range*: Range
-      ## Start/end position that the error corresponds to
+    node*: PNode
     severity*: DiagnosticSeverity
     file*: string
     case kind*: ErrorKind
@@ -32,3 +34,7 @@ type
         ## The args that its getting called with
     of Unknown, AmbigiousIdentifier:
       possibleSymbols*: seq[string]
+
+func range*(e: ParsedError): Range {.gcsafe.} =
+  ## Start/end position that the error corresponds to
+  e.node.initRange()
