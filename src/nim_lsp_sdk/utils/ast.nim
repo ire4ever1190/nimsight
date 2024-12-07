@@ -2,7 +2,7 @@
 import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos, llstream, renderer]
 import ../types
 
-import std/strformat
+import std/[strformat, options]
 
 type ParsedFile* = tuple[idx: FileIndex, ast: PNode]
 
@@ -54,6 +54,19 @@ func initRange*(p: PNode): Range =
       result.`end`.character = result.start.character + p.name.len.uint
     else:
       result.`end` = result.start
+
+
+proc findNode*(p: PNode, line, col: uint, careAbout: FileIndex): Option[PNode] =
+  ## Finds the node at (line, col)
+  # TODO: Do we need file index? Not like we can parse across files atm
+  let info = p.info
+  if info.line == line and info.col.uint == col and info.fileIndex == careAbout:
+    return some p
+
+  for child in p:
+    let res = findNode(child, line, col, careAbout)
+    if res.isSome():
+      return res
 
 
 proc ident(x: string): PIdent =

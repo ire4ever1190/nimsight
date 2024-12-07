@@ -154,18 +154,6 @@ func contains*(r: Range, p: PNode): bool =
   ## Returns true if a node is within a range
   p.info.initPos in r
 
-proc findNode(p: PNode, line, col: uint, careAbout: FileIndex): Option[PNode] =
-  ## Finds the node at (line, col)
-  # TODO: Do we need file index? Not like we can parse across files atm
-  let info = p.info
-  if info.line == line and info.col.uint == col and info.fileIndex == careAbout:
-    return some p
-
-  for child in p:
-    let res = findNode(child, line, col, careAbout)
-    if res.isSome():
-      return res
-
 type
   SymbolUsage* = object
     ## Information storing symbol usage
