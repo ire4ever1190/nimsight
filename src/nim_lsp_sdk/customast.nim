@@ -5,7 +5,7 @@
 
 import "$nim"/compiler/[ast, lineinfos, idents]
 
-import std/sequtils
+import std/[sequtils, options]
 
 type
   NodeIdx = uint32
@@ -28,6 +28,9 @@ type
 
 func root*(a: TreeView): Node =
   a[a.low]
+
+func hasSons*(a: Node): bool {.inline.} =
+  a.kind notin {nkCharLit..nkUInt64Lit, nkFloatLit..nkFloat128Lit, nkStrLit..nkTripleStrLit, nkIdent}
 
 iterator sons*(tree: TreeView, idx: NodeIdx): lent Node =
   for son in tree[idx].sons:
@@ -85,7 +88,7 @@ proc translate*(tree: var Tree, x: PNode, parent = default(NodeIdx)) =
   # Add into the tree, and update the parent to contain this
   # element in its child list
   tree &= node
-  let currIdx = tree.high.NodeIdx
+  let currIdx = (tree.len - 1).NodeIdx
   if likely(parent != currIdx):
     tree[parent].sons &= currIdx
   # Now translate all the children
@@ -118,3 +121,12 @@ proc toPNode*(tree: TreeView, idx: NodeIdx, cache = newIdentCache()): PNode =
 
 proc toPNode*(tree: TreeView): PNode =
   tree.toPNode(tree.low.NodeIdx)
+
+proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[Node] =
+  ## Finds the node at (line, col)
+  # TODO: Do we need file index? Not like we can parse across files atm
+  for node in t:
+    let info = node.info
+    if info.line == line and info.col.uint == col and info.fileIndex == careAbout:
+      return some node
+
