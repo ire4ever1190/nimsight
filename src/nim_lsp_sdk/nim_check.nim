@@ -41,8 +41,9 @@ proc exploreAST*(x: NodePtr, filter: proc (x: NodePtr): bool,
   ## - filter: proc to determine if the handler should be called
   ## - handler: proc called on each node, only recurses if it returns true
   if not filter(x) or handler(x):
-    for child in x:
-      exploreAST(child, filter, handler)
+    if x[].hasSons:
+      for child in x:
+        exploreAST(child, filter, handler)
 
 proc ofKind(x: set[TNodeKind]): (proc (x: NodePtr): bool) =
   proc (node: NodePtr): bool = node[].kind in x
@@ -84,7 +85,7 @@ proc toDocumentSymbol(x: NodePtr, kind = x.toSymbolKind()): DocumentSymbol =
 proc collectTypeFields(x: NodePtr, symbols: var seq[DocumentSymbol]) =
   if x[].kind == nkIdentDefs:
     symbols &= x.toDocumentSymbol(kind=Property)
-  else:
+  elif x[].hasSons:
     for child in x:
       child.collectTypeFields(symbols)
 
