@@ -206,7 +206,7 @@ proc nameNode*(x: NodePtr): NodePtr =
     x
   of nkPostFix:
     x[1].nameNode
-  of nkProcDef, nkFuncDef, nkMethodDef, nkMacroDef, nkTypeDef, nkAccQuoted, nkIdentDefs:
+  of nkProcDef..nkIteratorDef, nkTypeDef, nkAccQuoted, nkIdentDefs:
     x[namePos].nameNode
   else:
     raise (ref ValueError)(msg: fmt"Can't find name for {x[].kind}")
