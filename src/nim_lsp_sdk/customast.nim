@@ -78,6 +78,10 @@ iterator items*(n: NodePtr): NodePtr =
   for son in n[].sons:
     yield n.getPtr(son)
 
+func parent*(n: NodePtr): NodePtr =
+  ## Returns the parent node
+  n.getPtr(n[].parent)
+
 func `==`*(a, b: Node): bool =
   ## Checks if two nodes are equal.
   ## This is only a partial equality since
