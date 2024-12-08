@@ -69,13 +69,14 @@ lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[Co
   # Find actions for errors
   # Literal braindead implementation. Rerun the checks and try to match it up.
   # Need to do something like
-  let
-    errors = h.getErrors(params.textDocument.uri)
-    root = h.parseFile(params.textDocument.uri).ast
+  let errors = h.getErrors(params.textDocument.uri)
   # First we find the error that matches. Since they are parsed the same we should
   # be able to line them up exactly
   for err in errors:
     for diag in params.context.diagnostics:
+      debug err.range
+      debug diag.range
+      debug err.node[]
       if err.range == diag.range:
         result &= err.createFix(diag)
 

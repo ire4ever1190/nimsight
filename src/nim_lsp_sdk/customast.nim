@@ -27,12 +27,9 @@ type
     else:
       sons*: seq[NodeIdx]
 
-  # TODO: Enable views and just pass around a (openArray[Node], idx) tuple?
-  NodePtr* = object
+  NodePtr* {.shallow.} = object
     ## Fat pointer that can derefence a node.
-    ## This is a weak reference
-    data: ptr UncheckedArray[Node]
-    len: uint32
+    tree: seq[Node]
     idx: NodeIdx
 
   Tree = seq[Node]
@@ -40,15 +37,18 @@ type
 
   ParsedFile* = tuple[idx: FileIndex, ast: Tree]
 
-func `[]`*(p: NodePtr): var Node {.gcsafe.} =
+func `[]`*(p: NodePtr): lent Node {.gcsafe.} =
   ## Derefences a node
-  p.data[][p.idx]
+  p.tree[p.idx]
 
-func getPtr*(t: TreeView, idx: NodeIdx): NodePtr =
+func `$`*(p: Node): string =
+  return fmt"{p.kind} @ {p.info.line}:{p.info.col}"
+
+func getPtr*(t: Tree, idx: NodeIdx): NodePtr =
   ## Gets a [NodePtr] for an index
+  rangeCheck(idx.int in t.low..t.high)
   NodePtr(
-    data: cast[ptr UncheckedArray[Node]](addr t[0]),
-    len: t.len.uint32,
+    tree: t,
     idx: idx
   )
 
@@ -57,12 +57,10 @@ func getPtr*(t: NodePtr, idx: NodeIdx): NodePtr =
   result = t
   result.idx = idx
 
-template tree(t: NodePtr): openArray[Node] =
-  t.data.toOpenArray(0, t.len.int - 1)
-
 func `[]`*(p: NodePtr, child: int): NodePtr =
   ## Returns the n'th son of a node
-  NodePtr(data: p.data, idx: p[].sons[child])
+  result = p
+  result.idx = p[].sons[child]
 
 func root*(a: TreeView): Node =
   ## Returns the first node in a [Tree]
@@ -185,7 +183,7 @@ proc parseFile*(x: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
     p.lex.errorHandler = ignoreErrors
     result = (fileIdx, parseAll(p).toTree())
 
-proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[NodePtr] =
+proc findNode*(t: Tree, line, col: uint, careAbout: FileIndex): Option[NodePtr] =
   ## Finds the node at (line, col)
   # TODO: Do we need file index? Not like we can parse across files atm
   for idx, node in t:
