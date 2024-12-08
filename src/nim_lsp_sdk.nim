@@ -6,6 +6,8 @@ import nim_lsp_sdk/[nim_check, server, protocol]
 
 import nim_lsp_sdk/[types, params, methods, utils, logging, errors]
 
+from nim_lsp_sdk/utils/ast import editWith, newIdentNode
+
 import std/locks
 import std/os
 using s: var Server
@@ -67,7 +69,9 @@ lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[Co
   # Find actions for errors
   # Literal braindead implementation. Rerun the checks and try to match it up.
   # Need to do something like
-  let errors = h.getErrors(params.textDocument.uri)
+  let
+    errors = h.getErrors(params.textDocument.uri)
+    root = h.parseFile(params.textDocument.uri).ast
   # First we find the error that matches. Since they are parsed the same we should
   # be able to line them up exactly
   for err in errors:

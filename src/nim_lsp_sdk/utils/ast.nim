@@ -77,6 +77,12 @@ proc newIdentNode*(x: string): PNode =
   result = newNode(nkIdent)
   result.ident = ident x
 
+proc postfix*(x, operator: PNode): PNode =
+  ## Wraps a node in a postfix
+  result = newNode(nkPostFix)
+  result &= operator
+  result &= x
+
 proc editWith*(original: PNode, update: PNode): TextEdit =
   ## Creates an edit that will replace `original` with `update`.
   {.gcsafe.}:
