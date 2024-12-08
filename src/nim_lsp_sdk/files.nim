@@ -65,7 +65,7 @@ proc parseFile*(x: var Files, path: DocumentURI, version = NoVersion): ParsedFil
   ## Parses the file, and returns it. Returns cached AST if file hasn't
   ## changed
   let data = x.rawGet(path, version)
-  if data.ast.ast.len == 0:
+  if data.ast.ast.isNil:
     data.ast = path.parseFile(data.content)
   return data.ast
 

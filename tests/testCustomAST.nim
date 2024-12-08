@@ -17,4 +17,5 @@ test "Can convert to/from":
       let fileIdx = fileInfoIdx(conf, AbsoluteFile $file)
       let node = parseFile(fileIdx, newIdentCache(), conf).toTree()
 
-      check node.toPNode().toTree() == node
+      check node[].toPNode().toTree() == node
+
