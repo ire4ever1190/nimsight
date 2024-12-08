@@ -1,6 +1,7 @@
-import std/[unittest, macros, paths, os, dirs]
+import std/[unittest, macros, paths, os, dirs, options]
 
-import nim_lsp_sdk/customast
+import nim_lsp_sdk/[customast, nim_check]
+import nim_lsp_sdk/utils/ast
 
 import "$nim"/compiler/[ast, parser, syntaxes, options, msgs, idents, pathutils]
 

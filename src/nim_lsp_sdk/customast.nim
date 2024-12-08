@@ -3,12 +3,16 @@
 ## Implements the [customast](https://github.com/nim-lang/Nim/blob/devel/compiler/plugins/customast.nim) API
 ## to avoid needing to traverse the old tree to generate this
 
-import "$nim"/compiler/[ast, lineinfos, idents]
+import "$nim"/compiler/[ast, parser, syntaxes, options, msgs, idents, pathutils, lineinfos, llstream, renderer]
 
-import std/[sequtils, options]
+import std/[sequtils, options, strformat]
+
+import types
+
+import utils/ast
 
 type
-  NodeIdx = uint32
+  NodeIdx* = uint32
     ## Index into the tree
   Node* {.acyclic.} = object
     info*, endInfo*: TLineInfo
@@ -23,18 +27,58 @@ type
     else:
       sons*: seq[NodeIdx]
 
+  # TODO: Enable views and just pass around a (openArray[Node], idx) tuple?
+  NodePtr* = object
+    ## Fat pointer that can derefence a node.
+    ## This is a weak reference
+    data: ptr UncheckedArray[Node]
+    len: uint32
+    idx: NodeIdx
+
   Tree = seq[Node]
   TreeView = openArray[Node]
 
+  ParsedFile* = tuple[idx: FileIndex, ast: Tree]
+
+func `[]`*(p: NodePtr): var Node {.gcsafe.} =
+  ## Derefences a node
+  p.data[][p.idx]
+
+func getPtr*(t: TreeView, idx: NodeIdx): NodePtr =
+  ## Gets a [NodePtr] for an index
+  NodePtr(
+    data: cast[ptr UncheckedArray[Node]](addr t[0]),
+    len: t.len.uint32,
+    idx: idx
+  )
+
+func getPtr*(t: NodePtr, idx: NodeIdx): NodePtr =
+  ## Creates a [NodePtr] using the tree stored inside `t`
+  result = t
+  result.idx = idx
+
+template tree(t: NodePtr): openArray[Node] =
+  t.data.toOpenArray(0, t.len.int - 1)
+
+func `[]`*(p: NodePtr, child: int): NodePtr =
+  ## Returns the n'th son of a node
+  NodePtr(data: p.data, idx: p[].sons[child])
+
 func root*(a: TreeView): Node =
+  ## Returns the first node in a [Tree]
   a[a.low]
 
 func hasSons*(a: Node): bool {.inline.} =
+  ## Returns tree if a node has sons and can be iterated through
   a.kind notin {nkCharLit..nkUInt64Lit, nkFloatLit..nkFloat128Lit, nkStrLit..nkTripleStrLit, nkIdent}
 
 iterator sons*(tree: TreeView, idx: NodeIdx): lent Node =
   for son in tree[idx].sons:
     yield tree[son]
+
+iterator items*(n: NodePtr): NodePtr =
+  for son in n[].sons:
+    yield n.getPtr(son)
 
 func `==`*(a, b: Node): bool =
   ## Checks if two nodes are equal.
@@ -70,6 +114,7 @@ func `==`*(a, b: TreeView): bool =
   return true
 
 proc translate*(tree: var Tree, x: PNode, parent = default(NodeIdx)) =
+  ## Translates a [PNode] into a [Node] and adds it to `tree`
   template copy(field: untyped) =
     node.field = x.field
   var node = Node(kind: x.kind, parent: parent)
@@ -96,9 +141,11 @@ proc translate*(tree: var Tree, x: PNode, parent = default(NodeIdx)) =
     tree.translate(child, currIdx)
 
 proc toTree*(node: PNode): Tree =
+  ## Converts a `PNode` into a tree
   result.translate(node)
 
 proc toPNode*(tree: TreeView, idx: NodeIdx, cache = newIdentCache()): PNode =
+  ## Converts a node in the tree into a `PNode`
   let node = tree[idx]
   result = PNode(kind: node.kind)
   template copy(field: untyped) =
@@ -120,13 +167,67 @@ proc toPNode*(tree: TreeView, idx: NodeIdx, cache = newIdentCache()): PNode =
       result.sons &= tree.toPNode(son, cache)
 
 proc toPNode*(tree: TreeView): PNode =
+  ## Converts a custom AST into a `PNode`
   tree.toPNode(tree.low.NodeIdx)
 
-proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[Node] =
+proc ignoreErrors(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) =
+  # TODO: Don't ignore errors
+  discard
+
+proc parseFile*(x: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
+  ## Parses a document. Doesn't perform any semantic analysis
+  var conf = newConfigRef()
+  let fileIdx = fileInfoIdx(conf, AbsoluteFile x)
+  var p: Parser
+  {.gcsafe.}:
+    parser.openParser(p, fileIdx, llStreamOpen(content), newIdentCache(), conf)
+    defer: closeParser(p)
+    p.lex.errorHandler = ignoreErrors
+    result = (fileIdx, parseAll(p).toTree())
+
+proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[NodePtr] =
   ## Finds the node at (line, col)
   # TODO: Do we need file index? Not like we can parse across files atm
-  for node in t:
+  for idx, node in t:
+    # TODO: Implement early escaping?
+    # Issue is that for example `a and b` in a statement list wouldn't have
+    # the line info nicely line up. Maybe track when going between scopes?
     let info = node.info
     if info.line == line and info.col.uint == col and info.fileIndex == careAbout:
-      return some node
+      result = some t.getPtr(idx.NodeIdx)
 
+
+proc nameNode*(x: NodePtr): NodePtr =
+  ## Returns the node that stores the name
+  case x[].kind
+  of nkIdent:
+    x
+  of nkPostFix:
+    x[1].nameNode
+  of nkProcDef, nkFuncDef, nkMethodDef, nkMacroDef, nkTypeDef, nkAccQuoted, nkIdentDefs:
+    x[namePos].nameNode
+  else:
+    raise (ref ValueError)(msg: fmt"Can't find name for {x[].kind}")
+
+proc name*(x: NodePtr): string =
+  x.nameNode[].strVal
+
+func initRange*(p: NodePtr): Range =
+  ## Creates a range from a node
+  result = Range(start: p[].info.initPos(), `end`: p[].endInfo.initPos())
+  if result.`end` < result.start:
+    # The parser fails to set this correctly in a few spots.
+    # Attempt to make it usable
+    case p[].kind
+    of nkIdent:
+      result.`end`.line = result.start.line
+      result.`end`.character = result.start.character + p.name.len.uint
+    else:
+      result.`end` = result.start
+
+proc editWith*(original: NodePtr, update: PNode): TextEdit =
+  ## Creates an edit that will replace `original` with `update`.
+  {.gcsafe.}:
+    return TextEdit(
+      range: original.initRange,
+      newText: update.renderTree({renderNonExportedFields}))

@@ -4,8 +4,7 @@
 
 import pkg/minilru
 
-import utils/ast
-import ./[errors, types]
+import ./[errors, types, customast]
 
 import std/[strformat, options, logging]
 
@@ -66,7 +65,7 @@ proc parseFile*(x: var Files, path: DocumentURI, version = NoVersion): ParsedFil
   ## Parses the file, and returns it. Returns cached AST if file hasn't
   ## changed
   let data = x.rawGet(path, version)
-  if data.ast.ast == nil:
+  if data.ast.ast.len == 0:
     data.ast = path.parseFile(data.content)
   return data.ast
 

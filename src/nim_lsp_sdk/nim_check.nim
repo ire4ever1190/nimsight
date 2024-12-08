@@ -4,6 +4,8 @@ import types, hooks, server, params, errors
 
 import utils/ast
 
+import customast
+
 import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos, llstream]
 
 ## Common options for checking errors in a file
@@ -25,16 +27,16 @@ func makeOptions(file: DocumentURI): seq[string] =
 func `$`(e: ParsedError): string =
   result &= e.name & "\n"
   case e.kind
-  of Any:
-    result &= e.fullText
+  of Any, RemovableModule:
+    result &= e.fullText.strip()
   of Unknown, AmbigiousIdentifier:
     result &= "Did you mean?\n"
     for possible in e.possibleSymbols:
       result &= &"- {possible}\n"
     result.setLen(result.len - 1)
 
-proc exploreAST*(x: PNode, filter: proc (x: PNode): bool,
-                   handler: proc (x: PNode): bool) {.effectsOf: [filter, handler].}=
+proc exploreAST*(x: NodePtr, filter: proc (x: NodePtr): bool,
+                   handler: proc (x: NodePtr): bool) {.effectsOf: [filter, handler].}=
   ## Helper function to explore the AST
   ## - filter: proc to determine if the handler should be called
   ## - handler: proc called on each node, only recurses if it returns true
@@ -42,12 +44,12 @@ proc exploreAST*(x: PNode, filter: proc (x: PNode): bool,
     for child in x:
       exploreAST(child, filter, handler)
 
-proc ofKind(x: set[TNodeKind]): (proc (x: PNode): bool) =
-  proc (node: PNode): bool = node.kind in x
+proc ofKind(x: set[TNodeKind]): (proc (x: NodePtr): bool) =
+  proc (node: NodePtr): bool = node[].kind in x
 
-func toSymbolKind(x: PNode): SymbolKind =
+func toSymbolKind(x: NodePtr): SymbolKind =
   ## Converts from Nim NodeKind into LSP SymbolKind
-  case x.kind
+  case x[].kind
   of nkEnumFieldDef:
     EnumMember
   of nkFuncDef, nkProcDef:
@@ -55,7 +57,7 @@ func toSymbolKind(x: PNode): SymbolKind =
   of nkMethodDef:
     Method
   of nkTypeDef:
-    case x[2].kind:
+    case x[2][].kind:
     of nkTypeClassTy:
       Interface
     of nkRefTy, nkObjectTy: # Not correct! nkRef could just be a type alias not an obkect
@@ -68,7 +70,7 @@ func toSymbolKind(x: PNode): SymbolKind =
     # Likely not good enough
     Variable
 
-proc toDocumentSymbol(x: PNode, kind = x.toSymbolKind()): DocumentSymbol =
+proc toDocumentSymbol(x: NodePtr, kind = x.toSymbolKind()): DocumentSymbol =
   DocumentSymbol(
     name: x.name,
     kind: kind,
@@ -79,46 +81,46 @@ proc toDocumentSymbol(x: PNode, kind = x.toSymbolKind()): DocumentSymbol =
 
 # TODO: Clean up this whole process
 # Maybe make a genxeric if kind: body: recurse children thing?
-proc collectTypeFields(x: PNode, symbols: var seq[DocumentSymbol]) =
-  if x.kind == nkIdentDefs:
+proc collectTypeFields(x: NodePtr, symbols: var seq[DocumentSymbol]) =
+  if x[].kind == nkIdentDefs:
     symbols &= x.toDocumentSymbol(kind=Property)
   else:
     for child in x:
       child.collectTypeFields(symbols)
 
-proc collectIdentDefs(x: PNode): seq[DocumentSymbol] =
+proc collectIdentDefs(x: NodePtr): seq[DocumentSymbol] =
   var res: seq[DocumentSymbol]
-  x.exploreAST(ofKind({nkIdentDefs, nkConstDef})) do (node: PNode) -> bool:
-    for child in node.sons[0 ..< ^2]:
-      res &= child.toDocumentSymbol()
+  x.exploreAST(ofKind({nkIdentDefs, nkConstDef})) do (node: NodePtr) -> bool:
+    for child in node[].sons[0 ..< ^2]:
+      res &= x.getPtr(child).toDocumentSymbol()
   return res
 
-proc collectType(node: PNode): DocumentSymbol =
+proc collectType(node: NodePtr): DocumentSymbol =
   ## Collects a document symbol for a type definition
-  assert node.kind == nkTypeDef, "Must be a type section"
+  assert node[].kind == nkTypeDef, "Must be a type section"
 
   let syms = node.toDocumentSymbol()
 
   syms.children &= node.collectIdentDefs()
 
-  node.exploreAST(ofKind({nkEnumTy})) do (node: PNode) -> bool:
-    node.exploreAST(ofKind({nkIdent, nkEnumFieldDef})) do (node: PNode) -> bool:
-      syms.children &= (if node.kind == nkIdent: node else: node[0]).toDocumentSymbol()
+  node.exploreAST(ofKind({nkEnumTy})) do (node: NodePtr) -> bool:
+    node.exploreAST(ofKind({nkIdent, nkEnumFieldDef})) do (node: NodePtr) -> bool:
+      syms.children &= (if node[].kind == nkIdent: node else: node[0]).toDocumentSymbol()
   return syms
 
-proc outlineDocument*(x: PNode): seq[DocumentSymbol] =
+proc outlineDocument*(x: NodePtr): seq[DocumentSymbol] =
   ## Creates an outline of symbols in the document.
   ## TODO: Check if the client supports heirarchy or not
   var symbols = newSeq[DocumentSymbol]()
   # Explore top level decls
   for node in x:
-    case node.kind
+    case node[].kind
     of nkVarSection..nkConstSection:
       symbols &= node.collectIdentDefs()
     of nkProcDef..nkIteratorDef:
       symbols &= node.toDocumentSymbol()
     of nkTypeSection:
-      node.exploreAST(ofKind({nkTypeDef})) do (node: PNode) -> bool:
+      node.exploreAST(ofKind({nkTypeDef})) do (node: NodePtr) -> bool:
         symbols &= node.collectType()
     else: discard
   return symbols
@@ -150,9 +152,9 @@ func contains*(r: Range, p: Position): bool =
   # For everything else we can just check that its in between
   return p.line in r.start.line .. r.`end`.line
 
-func contains*(r: Range, p: PNode): bool =
+func contains*(r: Range, p: NodePtr): bool =
   ## Returns true if a node is within a range
-  p.info.initPos in r
+  p[].info.initPos in r
 
 type
   SymbolUsage* = object
