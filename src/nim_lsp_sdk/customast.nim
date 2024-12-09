@@ -72,7 +72,10 @@ func root*(a: TreeView): Node =
 
 const noSons = {nkCharLit..nkUInt64Lit, nkFloatLit..nkFloat128Lit, nkStrLit..nkTripleStrLit, nkIdent}
 
-func hasSons*(a: Node): bool {.inline.} =
+func kind*(n: NodePtr): TNodeKind {.inline.} =
+  n[].kind
+
+func hasSons*(a: Node | NodePtr): bool {.inline.} =
   ## Returns tree if a node has sons and can be iterated through
   a.kind notin noSons
 
@@ -274,7 +277,7 @@ func initSelectionRange*(node: NodePtr): SelectionRange =
   ## Does not traverse upwards.
   SelectionRange(range: node.initRange())
 
-proc toSelectionRange*(tree: Tree, start: NodeIdx): SelectionRange =
+func toSelectionRange*(tree: Tree, start: NodeIdx): SelectionRange =
   ## Returns a SelectionRange that encapsulates a node
   var currNode = tree.getPtr(start)
   result = currNode.initSelectionRange()

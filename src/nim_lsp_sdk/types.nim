@@ -440,7 +440,8 @@ func initDocumentURI*(x: string): DocumentURI =
 
 proc initPos*(line: SomeInteger, col: SomeInteger): Position =
   ## Creates a position from a line/col that is 1 indexed
-  result = Position(character: uint col - 1)
   # Handle underflows
+  if col != 0:
+    result.col = uint col - 1
   if line != 0:
     result.line = uint line - 1
