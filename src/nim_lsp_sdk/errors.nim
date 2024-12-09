@@ -1,4 +1,4 @@
-import types
+import types, customast
 
 import utils/ast
 
@@ -15,6 +15,8 @@ type
       ## Unknown symbol
     AmbigiousIdentifier
       ## Trying to use an identifer when it could come from multiple modules
+    RemovableModule
+      ## Either the import is unused or duplicated
     # TODO: case statement missing cases, deprecated/unused
 
 
@@ -23,11 +25,11 @@ type
     ## Wish the compiler had a structured errors mode
     name*: string
       ## The name given in the first line
-    node*: PNode
+    node*: NodePtr
     severity*: DiagnosticSeverity
     file*: string
     case kind*: ErrorKind
-    of Any:
+    of Any, RemovableModule:
       fullText*: string
     # of TypeMisMatch:
       # args: seq[string]

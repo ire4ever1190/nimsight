@@ -2,9 +2,11 @@
 import std/[strscans, strutils, syncio, json, jsonutils, options, strformat, tables]
 import std/macros
 import "$nim"/compiler/ast
-import nim_lsp_sdk/[nim_check, server, protocol]
+import nim_lsp_sdk/[nim_check, server, protocol, customast]
 
 import nim_lsp_sdk/[types, params, methods, utils, logging, errors]
+
+from nim_lsp_sdk/utils/ast import newIdentNode
 
 import std/locks
 import std/os
@@ -72,6 +74,9 @@ lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[Co
   # be able to line them up exactly
   for err in errors:
     for diag in params.context.diagnostics:
+      debug err.range
+      debug diag.range
+      debug err.node[]
       if err.range == diag.range:
         result &= err.createFix(diag)
 
@@ -89,7 +94,7 @@ lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionP
 
 
 lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) -> seq[DocumentSymbol] {.gcsafe.}:
-  return h.parseFile(params.textDocument.uri).ast.outLineDocument()
+  return h.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
 
 lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams):
   logging.info("Client initialised")

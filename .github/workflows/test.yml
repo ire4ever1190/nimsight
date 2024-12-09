@@ -36,3 +36,6 @@ jobs:
 
     - name: Run Tests
       run: nimble test
+    - name: Output nvim LSP logs
+      if: failure()
+      run: cat ~/.local/state/nvim/lsp.log

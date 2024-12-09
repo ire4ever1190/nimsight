@@ -4,22 +4,6 @@ import ../types
 
 import std/[strformat, options]
 
-type ParsedFile* = tuple[idx: FileIndex, ast: PNode]
-
-proc ignoreErrors(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) =
-  # TODO: Don't ignore errors
-  discard
-
-proc parseFile*(x: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
-  ## Parses a document. Doesn't perform any semantic analysis
-  var conf = newConfigRef()
-  let fileIdx = fileInfoIdx(conf, AbsoluteFile x)
-  var p: Parser
-  {.gcsafe.}:
-    parser.openParser(p, fileIdx, llStreamOpen(content), newIdentCache(), conf)
-    defer: closeParser(p)
-    p.lex.errorHandler = ignoreErrors
-    result = (fileIdx, parseAll(p))
 
 proc nameNode*(x: PNode): PNode =
   ## Returns the node that stores the name
@@ -42,20 +26,6 @@ proc name*(x: PNode): string =
   # TODO: Handle unpacking postfix etc
   return x.nameNode.ident.s
 
-func initRange*(p: PNode): Range =
-  ## Creates a range from a node
-  result = Range(start: p.info.initPos(), `end`: p.endInfo.initPos())
-  if result.`end` < result.start:
-    # The parser fails to set this correctly in a few spots.
-    # Attempt to make it usable
-    case p.kind
-    of nkIdent:
-      result.`end`.line = result.start.line
-      result.`end`.character = result.start.character + p.name.len.uint
-    else:
-      result.`end` = result.start
-
-
 proc findNode*(p: PNode, line, col: uint, careAbout: FileIndex): Option[PNode] =
   ## Finds the node at (line, col)
   # TODO: Do we need file index? Not like we can parse across files atm
@@ -77,7 +47,8 @@ proc newIdentNode*(x: string): PNode =
   result = newNode(nkIdent)
   result.ident = ident x
 
-proc editWith*(original: PNode, update: PNode): TextEdit =
-  ## Creates an edit that will replace `original` with `update`.
-  {.gcsafe.}:
-    return TextEdit(range: original.initRange, newText: update.renderTree({renderNonExportedFields}))
+proc postfix*(x, operator: PNode): PNode =
+  ## Wraps a node in a postfix
+  result = newNode(nkPostFix)
+  result &= operator
+  result &= x

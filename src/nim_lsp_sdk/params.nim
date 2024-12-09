@@ -136,5 +136,5 @@ registerServerMessage(codeAction, CodeActionParams, seq[CodeAction], false)
 registerServerMessage(documentSymbols, DocumentSymbolParams, seq[DocumentSymbol], false)
 
 # These are internal messages that aren't sent by the client
-registerServerMessage(sendDiagnostics, DocumentURI, void, true)
+registerServerMessage(sendDiagnostics, DocumentURI, void, false)
 registerServerMessage("shutdown", string, void, true)

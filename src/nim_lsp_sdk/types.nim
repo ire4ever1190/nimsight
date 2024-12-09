@@ -426,6 +426,9 @@ func path*(x: DocumentURI): Path =
     ## Converts to a path
     result = x.string.replace("file://", "").Path
 
+func initDocumentURI*(x: string): DocumentURI =
+  DocumentURI("file://" & x)
+
 proc initPos*(line: SomeInteger, col: SomeInteger): Position =
   ## Creates a position from a line/col that is 1 indexed
   result = Position(character: uint col - 1)
