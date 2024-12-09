@@ -370,7 +370,7 @@ type
     else: discard
     text*: string
 
-  CodeActionKind* = object
+  CodeActionKind* = enum
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeActionKind)
     Empty = ""
     QuickFix = "quickfix"
@@ -414,6 +414,7 @@ type
 type
   ServerError* = object of CatchableError
     code*: ErrorCode
+    data*: JsonNode
 
 func `<`*(a, b: Position): bool =
   return a.line < b.line or  (a.line == b.line and a.character < b.character)
