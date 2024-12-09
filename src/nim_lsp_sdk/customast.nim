@@ -223,8 +223,10 @@ proc nameNode*(x: NodePtr): NodePtr =
     x[1].nameNode
   of nkProcDef..nkIteratorDef, nkTypeDef, nkAccQuoted, nkIdentDefs:
     x[namePos].nameNode
+  of nkPragmaExpr:
+    x[0].nameNode
   else:
-    raise (ref ValueError)(msg: fmt"Can't find name for {x[].kind}")
+    raise (ref ValueError)(msg: fmt"Can't find name for {x[].kind} @ {x[].info.lineCol()}")
 
 proc name*(x: NodePtr): string =
   x.nameNode[].strVal
