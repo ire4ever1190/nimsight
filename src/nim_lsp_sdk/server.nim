@@ -1,4 +1,4 @@
-import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics]
+import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar]
 
 import utils, types, protocol, hooks, params, ./logging, ./files, ./customast
 import utils/ast
@@ -85,7 +85,7 @@ proc listen*(server: var Server, event: static[string], handler: getMethodHandle
     let data = try:
         x.jsonTo(ParamType, JOptions(allowMissingKeys: true, allowExtraKeys: true))
       except CatchableError as e:
-        raise (ref ServerError)(code: InvalidParams, msg: e.msg)
+        raise (ref ServerError)(code: InvalidParams, msg: e.msg, data: x)
     try:
       when ReturnType is not void:
         let ret = handler(handle, data)
@@ -97,8 +97,13 @@ proc listen*(server: var Server, event: static[string], handler: getMethodHandle
       else:
         handler(handle, data)
         return some newJNull()
+    except ServerError:
+      raise
     except CatchableError as e:
-      raise (ref ServerError)(code: RequestFailed, msg: e.msg)
+      let entries = collect:
+        for entry in e.getStacktraceEntries():
+         fmt"{entry.filename}:{entry.line} {entry.procName}"
+      raise (ref ServerError)(code: RequestFailed, msg: e.msg, data: %* entries)
 
   server.addHandler(event, inner)
 

@@ -73,7 +73,8 @@ proc respond*(request: Message, err: ServerError) =
   ## Responds to a request with an error
   let payload = ResponseError(
     code: err.code,
-    message: err.msg
+    message: err.msg,
+    data: option(err.data)
   )
   sendPayload(ResponseMessage(id: request.id, error: some payload))
 
