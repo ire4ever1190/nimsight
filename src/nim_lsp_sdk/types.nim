@@ -408,8 +408,13 @@ type
     codeActionProvider*: bool
     documentSymbolProvider*: Union[(bool, DocumentSymbolOptions)]
     textDocumentSync*: Union[(bool, TextDocumentSyncOptions)]
+    selectionRangeProvider*: bool
 
   ClientCapabilities* = object
+
+  SelectionRange* = ref object
+    range*: Range
+    parent*: SelectionRange
 
 type
   ServerError* = object of CatchableError
@@ -418,6 +423,9 @@ type
 
 func `<`*(a, b: Position): bool =
   return a.line < b.line or  (a.line == b.line and a.character < b.character)
+
+func `<=`*(a, b: Position): bool =
+  return a < b or a == b
 
 proc hash*(x: DocumentURI): Hash {.borrow.}
 proc `==`*(a, b: DocumentURI): bool {.borrow.}

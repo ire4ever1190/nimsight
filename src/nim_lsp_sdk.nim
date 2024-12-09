@@ -65,6 +65,14 @@ lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocument
 lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
   discard
 
+lsp.listen(selectionRange) do (h: RequestHandle, params: SelectionRangeParams) -> seq[SelectionRange] {.gcsafe.}:
+  let root = h.parseFile(params.textDocument.uri).ast
+  result = newSeqOfCap[SelectionRange](params.positions.len)
+  for pos in params.positions:
+    let node = root[].findNode(pos)
+    if node.isSome():
+      result &= root.toSelectionRange(node.unsafeGet())
+
 lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction] {.gcsafe.}:
   # Find actions for errors
   # Literal braindead implementation. Rerun the checks and try to match it up.
@@ -74,9 +82,6 @@ lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[Co
   # be able to line them up exactly
   for err in errors:
     for diag in params.context.diagnostics:
-      debug err.range
-      debug diag.range
-      debug err.node[]
       if err.range == diag.range:
         result &= err.createFix(diag)
 

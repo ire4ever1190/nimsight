@@ -278,7 +278,8 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
         textDocumentSync: ServerCapabilities.textDocumentSync.init(TextDocumentSyncOptions(
           openClose: true,
           change: Full
-        ))
+        )),
+        selectionRangeProvider: true
       ),
       serverInfo: ServerInfo(
         name: r.server[].name,

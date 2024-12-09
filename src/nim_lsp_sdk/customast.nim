@@ -52,6 +52,10 @@ func getPtr*(t: Tree, idx: NodeIdx): NodePtr =
     idx: idx
   )
 
+func `==`(a, b: NodePtr): bool =
+  ## Checks that `a` and `b` point to the same thing
+  cast[pointer](a.tree) == cast[pointer](b.tree) and a.idx == b.idx
+
 func getPtr*(t: NodePtr, idx: NodeIdx): NodePtr =
   ## Creates a [NodePtr] using the tree stored inside `t`
   result = t
@@ -83,6 +87,7 @@ iterator items*(n: NodePtr): NodePtr =
 func parent*(n: NodePtr): NodePtr =
   ## Returns the parent node
   n.getPtr(n[].parent)
+
 
 func `==`*(a, b: Node): bool =
   ## Checks if two nodes are equal.
@@ -196,24 +201,6 @@ proc parseFile*(x: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
     p.lex.errorHandler = ignoreErrors
     result = (fileIdx, parseAll(p).toTree())
 
-proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[NodeIdx] =
-  ## Returns the index for a node that matches line col.
-  # TODO: Do we need file index? Not like we can parse across files atm
-  for idx, node in t:
-    # TODO: Implement early escaping?
-    # Issue is that for example `a and b` in a statement list wouldn't have
-    # the line info nicely line up. Maybe track when going between scopes?
-    let info = node.info
-    if unlikely(info.line == line and info.col.uint == col and info.fileIndex == careAbout):
-      result = some idx.NodeIdx
-
-proc findNode*(t: Tree, line, col: uint, careAbout: FileIndex): Option[NodePtr] =
-  # For some reason its faster to deference here than to derefence in the other (By a large margin).
-  # Maybe if I deference directly then it dereferences every loop?
-  let idx = t[].findNode(line, col, careAbout)
-  if idx.isSome():
-    return some t.getPtr(idx.unsafeGet())
-
 proc nameNode*(x: NodePtr): NodePtr =
   ## Returns the node that stores the name
   case x[].kind
@@ -244,9 +231,55 @@ func initRange*(p: NodePtr): Range =
     else:
       result.`end` = result.start
 
+proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[NodeIdx] =
+  ## Returns the index for a node that matches line col.
+  # TODO: Do we need file index? Not like we can parse across files atm
+  for idx, node in t:
+    # TODO: Implement early escaping?
+    # Issue is that for example `a and b` in a statement list wouldn't have
+    # the line info nicely line up. Maybe track when going between scopes?
+    let info = node.info
+    if unlikely(info.line == line and info.col.uint == col and info.fileIndex == careAbout):
+      result = some idx.NodeIdx
+
+proc findNode*(t: TreeView, pos: Position): Option[NodeIdx] =
+  ## Returns a node that contains the position. Returns the node with the smallest range
+  for idx, node in t:
+    # TODO: Implement early escaping?
+    # Issue is that for example `a and b` in a statement list wouldn't have
+    # the line info nicely line up. Maybe track when going between scopes?
+    let
+      startPos = node.info.initPos()
+      endPos = node.endInfo.initPos()
+    if startPos <= pos and pos <= endPos:
+      result = some idx.NodeIdx
+
+
+proc findNode*(t: Tree, line, col: uint, careAbout: FileIndex): Option[NodePtr] =
+  # For some reason its faster to deference here than to derefence in the other (By a large margin).
+  # Maybe if I deference directly then it dereferences every loop?
+  let idx = t[].findNode(line, col, careAbout)
+  if idx.isSome():
+    return some t.getPtr(idx.unsafeGet())
+
 proc editWith*(original: NodePtr, update: PNode): TextEdit =
   ## Creates an edit that will replace `original` with `update`.
   {.gcsafe.}:
     return TextEdit(
       range: original.initRange,
       newText: update.renderTree({renderNonExportedFields}))
+
+func initSelectionRange*(node: NodePtr): SelectionRange =
+  ## Converts a single node into a single SelectionRange.
+  ## Does not traverse upwards.
+  SelectionRange(range: node.initRange())
+
+func toSelectionRange*(tree: Tree, start: NodeIdx): SelectionRange =
+  ## Returns a SelectionRange that encapsulates a node
+  var currNode = tree.getPtr(start)
+  result = currNode.initSelectionRange()
+
+  var prev = result
+  while currNode != currNode.parent():
+    currNode = currNode.parent()
+    prev.parent = currNode.initSelectionRange()

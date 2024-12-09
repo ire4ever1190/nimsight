@@ -17,7 +17,7 @@ proc nameNode*(x: PNode): PNode =
   else:
     raise (ref ValueError)(msg: fmt"Can't find name for {x.kind}")
 
-func initPos*(x: TLineInfo): Position =
+func initPos*(x: TLineInfo): Position {.inline.} =
   ## Converts Nim [TLineInfo] into LSP [Position]
   initPos(uint x.line, uint x.col + 1)
 
