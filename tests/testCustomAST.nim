@@ -18,4 +18,3 @@ test "Can convert to/from":
       let node = parseFile(fileIdx, newIdentCache(), conf).toTree()
 
       check node[].toPNode().toTree() == node
-

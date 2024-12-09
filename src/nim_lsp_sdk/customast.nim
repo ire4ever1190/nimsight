@@ -66,9 +66,11 @@ func root*(a: TreeView): Node =
   ## Returns the first node in a [Tree]
   a[a.low]
 
+const noSons = {nkCharLit..nkUInt64Lit, nkFloatLit..nkFloat128Lit, nkStrLit..nkTripleStrLit, nkIdent}
+
 func hasSons*(a: Node): bool {.inline.} =
   ## Returns tree if a node has sons and can be iterated through
-  a.kind notin {nkCharLit..nkUInt64Lit, nkFloatLit..nkFloat128Lit, nkStrLit..nkTripleStrLit, nkIdent}
+  a.kind notin noSons
 
 iterator sons*(tree: TreeView, idx: NodeIdx): lent Node =
   for son in tree[idx].sons:
@@ -145,9 +147,8 @@ proc translate*(tree: var seq[Node], x: PNode, parent = default(NodeIdx)) =
   let currIdx = (tree.len - 1).NodeIdx
   if likely(parent != currIdx):
     tree[parent].sons &= currIdx
-  # Now translate all the children
-  for child in x:
-    tree.translate(child, currIdx)
+  for son in x:
+    tree.translate(son, currIdx)
 
 proc toTree*(node: PNode): Tree =
   ## Converts a `PNode` into a tree
