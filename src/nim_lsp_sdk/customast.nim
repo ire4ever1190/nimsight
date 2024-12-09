@@ -5,7 +5,7 @@
 
 import "$nim"/compiler/[ast, parser, syntaxes, options, msgs, idents, pathutils, lineinfos, llstream, renderer]
 
-import std/[sequtils, options, strformat]
+import std/[sequtils, options, strformat, logging]
 
 import types
 
@@ -274,7 +274,7 @@ func initSelectionRange*(node: NodePtr): SelectionRange =
   ## Does not traverse upwards.
   SelectionRange(range: node.initRange())
 
-func toSelectionRange*(tree: Tree, start: NodeIdx): SelectionRange =
+proc toSelectionRange*(tree: Tree, start: NodeIdx): SelectionRange =
   ## Returns a SelectionRange that encapsulates a node
   var currNode = tree.getPtr(start)
   result = currNode.initSelectionRange()
@@ -283,3 +283,4 @@ func toSelectionRange*(tree: Tree, start: NodeIdx): SelectionRange =
   while currNode != currNode.parent():
     currNode = currNode.parent()
     prev.parent = currNode.initSelectionRange()
+    prev = prev.parent
