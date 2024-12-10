@@ -241,8 +241,11 @@ proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[NodeI
     # TODO: Implement early escaping?
     # Issue is that for example `a and b` in a statement list wouldn't have
     # the line info nicely line up. Maybe track when going between scopes?
-    let info = node.info
-    if unlikely(info.line == line and info.col.uint == col and info.fileIndex == careAbout):
+    let
+      info = node.info
+      # Empty nodes don't have proper line info set, so ignore them
+      isEmpty = node.kind == nkEmpty
+    if unlikely(not isEmpty and info.line == line and info.col.uint == col and info.fileIndex == careAbout):
       result = some idx.NodeIdx
 
 proc findNode*(t: TreeView, pos: Position): Option[NodeIdx] =

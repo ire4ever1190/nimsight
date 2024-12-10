@@ -442,6 +442,6 @@ proc initPos*(line: SomeInteger, col: SomeInteger): Position =
   ## Creates a position from a line/col that is 1 indexed
   # Handle underflows
   if col != 0:
-    result.col = uint col - 1
+    result.character = uint col - 1
   if line != 0:
     result.line = uint line - 1
