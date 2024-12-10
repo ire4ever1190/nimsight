@@ -1,6 +1,8 @@
 ## Handles communication between the client/server
-import std/[json, jsonutils, options, strscans, logging, strutils, strformat, locks]
-import types, utils, hooks
+import std/[json, jsonutils, options, strscans, logging, strutils, strformat, locks, sugar]
+import types, utils, hooks, methods, params
+
+import pkg/anano
 
 proc readPayload*(): JsonNode =
   ## Reads the JSON body that the client has sent
@@ -88,6 +90,8 @@ proc send*[T: Message](msg: sink T) =
   sendPayload(msg)
 
 proc sendNotification*(meth: static[string], payload: getMethodParam(meth)) {.gcsafe.} =
+  static:
+    assert meth.isNotification(), meth & " is not a notification"
   {.gcsafe.}:
     send(
       NotificationMessage(
@@ -95,3 +99,33 @@ proc sendNotification*(meth: static[string], payload: getMethodParam(meth)) {.gc
         params: some payload.toJson()
       )
     )
+proc sendRequestMessage*(meth: static[string], payload: getMethodParam(meth)) {.gcsafe.} =
+  static:
+    assert not meth.isNotification(), meth & " is not a request"
+  {.gcsafe.}:
+    send(
+      RequestMessage(
+        `method`: meth,
+        params: payload.toJson(),
+        id: some toJson($genNanoID())
+      )
+    )
+
+proc showMessage*(message: string, typ: MessageType) =
+  ## Sends a message to be shown in the client
+  sendNotification(windowShowMessage, ShowMessageParams(`type`: typ, message: message))
+
+proc showMessageRequest*(message: string, typ: MessageType, actions: openArray[string]) =
+  ## Sends a message to be shown to the client. Contains a list of actions that the
+  ## user can click
+  let actions = collect:
+    for action in actions:
+      MessageActionItem(title: action)
+  sendRequestMessage(
+    windowShowMessageRequest,
+    ShowMessageRequestParams(
+      `type`: typ,
+      message: message,
+      actions: actions
+    )
+  )

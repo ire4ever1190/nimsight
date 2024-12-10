@@ -100,6 +100,11 @@ type
   SymbolTag* = enum
     Deprecated
 
+  ShowMessageRequestParams* = object
+    `type`*: MessageType
+    message*: string
+    actions*: seq[MessageActionItem]
+
   DocumentSymbol* = ref object
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#documentSymbol)
     name*: string
@@ -125,6 +130,8 @@ type
 registerClientMessage(pubDiagnotisticsNotification, PublishDiagnosticsParams, void, true)
 registerClientMessage(initializeRequest, InitializeParams, InitializeResult)
 registerClientMessage(logMessage, LogMessageParams, void, true)
+registerClientMessage(windowShowMessage, ShowMessageparams, void, true)
+registerClientMessage(windowShowMessageRequest, ShowMessageRequestParams, Option[MessageActionItem], false)
 
 #
 # Server messages

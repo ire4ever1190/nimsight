@@ -103,5 +103,6 @@ lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) 
 
 lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams):
   logging.info("Client initialised")
+  showMessageRequest("Done", Info, ["Hello", "No"])
 
 lsp.poll()

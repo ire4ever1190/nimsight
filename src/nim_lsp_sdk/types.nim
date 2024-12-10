@@ -301,6 +301,9 @@ type
     Rename = "rename"
     Delete = "delete"
 
+  MessageActionItem* = object
+    title*: string
+
   FailureHandlingKind* = enum
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#failureHandlingKind)
     Abort = "abort"
