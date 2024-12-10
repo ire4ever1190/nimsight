@@ -408,8 +408,13 @@ type
     codeActionProvider*: bool
     documentSymbolProvider*: Union[(bool, DocumentSymbolOptions)]
     textDocumentSync*: Union[(bool, TextDocumentSyncOptions)]
+    selectionRangeProvider*: bool
 
   ClientCapabilities* = object
+
+  SelectionRange* = ref object
+    range*: Range
+    parent*: SelectionRange
 
 type
   ServerError* = object of CatchableError
@@ -418,6 +423,9 @@ type
 
 func `<`*(a, b: Position): bool =
   return a.line < b.line or  (a.line == b.line and a.character < b.character)
+
+func `<=`*(a, b: Position): bool =
+  return a < b or a == b
 
 proc hash*(x: DocumentURI): Hash {.borrow.}
 proc `==`*(a, b: DocumentURI): bool {.borrow.}
@@ -432,7 +440,8 @@ func initDocumentURI*(x: string): DocumentURI =
 
 proc initPos*(line: SomeInteger, col: SomeInteger): Position =
   ## Creates a position from a line/col that is 1 indexed
-  result = Position(character: uint col - 1)
   # Handle underflows
+  if col != 0:
+    result.character = uint col - 1
   if line != 0:
     result.line = uint line - 1

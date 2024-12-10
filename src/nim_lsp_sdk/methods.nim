@@ -16,3 +16,4 @@ const
   sendDiagnostics* = "extension/sendDiagnostics"
     ## Custom method for making the server start sending diagnostics.
     ## Needed when client doesn't support pull diagnostics (kate)
+  selectionRange* = "textDocument/selectionRange"

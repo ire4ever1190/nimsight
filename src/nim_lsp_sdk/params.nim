@@ -110,6 +110,10 @@ type
     selectionRange*: Range
     children*: seq[DocumentSymbol]
 
+  SelectionRangeParams* = object of mixed(PartialResultParams)
+    textDocument*: TextDocumentIdentifier
+    positions*: seq[Position]
+
   DocumentSymbolParams* = object of mixed(PartialResultParams)
     textDocument*: TextDocumentIdentifier
   DidSaveTextDocumentParams* = object
@@ -129,11 +133,13 @@ registerServerMessage(openedNotification, DidOpenTextDocumentParams, void, true)
 registerServerMessage(savedNotification, DidSaveTextDocumentParams, void, true)
 registerServerMessage(changedNotification, DidChangeTextDocumentParams, void, true)
 registerServerMessage(initialNotification, InitializedParams, void, true)
-registerServerMessage(symbolDefinition, TextDocumentPositionParams, Option[Location], true)
+registerServerMessage(symbolDefinition, TextDocumentPositionParams, Option[Location], false)
 # TODO: Add ability to support goofy returns like (Command | CodeAction)[]
 # Support is basically there, think its just the parsing that needs to be changed
 registerServerMessage(codeAction, CodeActionParams, seq[CodeAction], false)
 registerServerMessage(documentSymbols, DocumentSymbolParams, seq[DocumentSymbol], false)
+
+registerServerMessage(selectionRange, SelectionRangeParams, seq[SelectionRange], false)
 
 # These are internal messages that aren't sent by the client
 registerServerMessage(sendDiagnostics, DocumentURI, void, false)
