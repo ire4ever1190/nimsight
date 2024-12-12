@@ -1,4 +1,4 @@
-import std/[macrocache, macros, strformat]
+import std/[macrocache, macros, strformat, paths]
 
 import threading/[rwlock]
 
@@ -81,8 +81,6 @@ macro mixed*(objs: varargs[typed]): typedesc =
   ))
   result = newStmtList(result, name)
 
-template `->`*(a, b: bool): bool =
-  ## Therefore operator
-  not a or b
+func `/`*(a: Path, b: static[string]): Path = a / Path(b)
 
 export union

@@ -1,4 +1,4 @@
-import std/[options, json]
+import std/[options, json, paths]
 
 import types, utils, methods
 
@@ -10,7 +10,7 @@ type
     processId*: Option[int]
     clientInfo*: Option[ClientInfo]
     locale*: Option[string]
-    rootPath*: Option[string]
+    rootPath*: Option[Path]
     rootUri*: Option[DocumentUri]
     initializationOptions*: Option[JsonNode]
     capabilities*: ClientCapabilities
@@ -124,6 +124,17 @@ type
   DidSaveTextDocumentParams* = object
     textDocument*: TextDocumentIdentifier
   InitializedParams* = object
+
+
+func folders*(params: InitializeParams): seq[Path] =
+  ## Returns all the paths that are in the intialisation
+  if params.rootUri.isSome():
+    result &= params.rootUri.unsafeGet().path
+  elif params.rootPath.isSome():
+    result &= params.rootPath.unsafeGet()
+  for folder in params.workspaceFolders.get(@[]):
+    result &= folder.uri.path
+
 #
 # Client messages
 #

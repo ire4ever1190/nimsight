@@ -1,4 +1,4 @@
-import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar]
+import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths]
 
 import utils, types, protocol, hooks, params, ./logging, ./files, ./customast
 import utils/ast
@@ -27,6 +27,8 @@ type
       ## Stores all the files in use by the server
     running: Atomic[bool]
       ## Tracks if the server is shutting down or not
+    roots*: seq[Path]
+      ## Workspace roots
     name*: string
     version*: string
 
@@ -271,7 +273,7 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
   result.listen("initialize") do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
     # Find what is supported depending on what handlers are registered.
     # Some manual capabilities will also need to be added
-    InitializeResult(
+    result = InitializeResult(
       capabilities: ServerCapabilities(
         codeActionProvider: true,
         documentSymbolProvider: ServerCapabilities.documentSymbolProvider.init(true),
@@ -286,5 +288,8 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
         version: some(r.server[].version)
       )
     )
+    # add all the roots
+    r.server[].roots = params.folders
+    debug r.server[].roots
 
 export hooks

@@ -1,5 +1,5 @@
 
-import std/[strscans, strutils, syncio, json, jsonutils, options, strformat, tables]
+import std/[strscans, strutils, syncio, json, jsonutils, options, strformat, tables, sequtils, paths, files]
 import std/macros
 import "$nim"/compiler/ast
 import nim_lsp_sdk/[nim_check, server, protocol, customast]
@@ -103,6 +103,16 @@ lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) 
 
 lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams):
   logging.info("Client initialised")
-  showMessageRequest("Done", Info, ["Hello", "No"])
+  # Check that if there is a nimble.lock file, there is a nimble.paths file.
+  # This stops the issue of wondering why nim check is complaining about not
+  # finding libraries
+  for root in h.server[].roots:
+    let
+      pathsFile = root/"nimble.paths"
+      lockFile = root/"nimble.lock"
+    if not (fileExists(lockFile) and fileExists(pathsFile)):
+      debug "Not initialised"
+
+
 
 lsp.poll()
