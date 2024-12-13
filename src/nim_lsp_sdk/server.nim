@@ -1,7 +1,7 @@
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths]
 
-import utils, types, protocol, hooks, params, ./logging, ./files, ./customast
-import utils/ast
+import utils, types, protocol, hooks, params, ./logging, ./files, ./customast, methods
+import utils/[ast, locks]
 
 import threading/[channels, rwlock]
 
@@ -11,6 +11,18 @@ type
   Handler* = proc (handle: RequestHandle, x: JsonNode): Option[JsonNode] {.gcsafe.}
     ## Handler for a method. Uses JsonNode to perform type elision,
     ## gets converted into approiate types inside
+
+  ResponseTable* = object
+    ## Central location for waiting on responses to messages
+    ## sent to the client
+    cond: ConditionVar
+      ## Condition which signals that a thread should check if
+      ## it can read the response
+    id: string
+      ## ID that has been sent
+    data: pointer
+      ## Pointer containing the data
+
   Server* = object
     listeners: Table[string, Handler]
     queue: Chan[Message]
@@ -29,6 +41,8 @@ type
       ## Tracks if the server is shutting down or not
     roots*: seq[Path]
       ## Workspace roots
+    resultsLock*: RwLock
+    results*: ResponseTable
     name*: string
     version*: string
 
@@ -67,6 +81,22 @@ proc isRunning*(s: var Server): bool {.inline.} = s.running.load()
 
 const NimblePkgVersion {.strdefine.} = "Unknown"
   ## Default to using the version defined by nimble
+
+proc put*[T](table: var ResponseTable, id: string, data: sink T) =
+  ## Sets the response value in the table
+  withLock table.cond:
+    table.id = id
+    table.data = addr data
+    wasMoved(data)
+    while table.data != nil: discard
+
+proc get*[T](table: var ResponseTable, id: string, res: out T) =
+  let x = addr table
+  table.cond.wait(proc (): bool = x[].id == id)
+  res = move(cast[ptr T](table.data)[])
+
+proc get*[T](table: var ResponseTable, id: string): T =
+  table.get(id, result)
 
 proc addHandler(server: var Server, event: string, handler: Handler) =
   ## Internal method for adding handler.
@@ -179,6 +209,11 @@ proc workerThread(server: ptr Server) {.thread.} =
     let id = request.id
     # TODO: Break this out into a generic handleMessage() proc
     # We are only reading this so it should be fine right??
+    if request of ResponseMessage:
+      let resp = ResponseMessage(request)
+      server[].results.put($resp.id, resp.params)
+      continue
+
     if request.meth in server[].listeners:
       let
         handler = server[].listeners[request.meth]
@@ -256,6 +291,28 @@ proc poll*(server: var Server) =
       else:
         request.respond(ServerError(code: InvalidRequest, msg: "Server is shutting down"))
 
+
+proc showMessageRequest*(
+  server: var Server,
+  message: string,
+  typ: MessageType,
+  actions: openArray[string]
+) =
+  ## Sends a message to be shown to the client. Contains a list of actions that the
+  ## user can click
+  let actions = collect:
+    for action in actions:
+      MessageActionItem(title: action)
+
+  let id = sendRequestMessage(
+    windowShowMessageRequest,
+    ShowMessageRequestParams(
+      `type`: typ,
+      message: message,
+      actions: actions
+    )
+  )
+  debug pretty(server.results.get[:JsonNode](id))
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers

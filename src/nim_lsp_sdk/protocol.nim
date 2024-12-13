@@ -38,7 +38,10 @@ proc readRequest*(): Message =
   let data = readPayload()
   try:
     if "id" in data: # Notifications dont have an ID
-      return data.jsonTo(RequestMessage, options)
+      if "method" in data:
+        return data.jsonTo(RequestMessage, options)
+      else:
+        return data.jsonTo(ResponseMessage, options)
     else:
       return data.jsonTo(NotificationMessage, options)
   except CatchableError as e:
@@ -99,15 +102,16 @@ proc sendNotification*(meth: static[string], payload: getMethodParam(meth)) {.gc
         params: some payload.toJson()
       )
     )
-proc sendRequestMessage*(meth: static[string], payload: getMethodParam(meth)) {.gcsafe.} =
+proc sendRequestMessage*(meth: static[string], payload: getMethodParam(meth)): string {.gcsafe.} =
   static:
     assert not meth.isNotification(), meth & " is not a request"
+  result = $genNanoID()
   {.gcsafe.}:
     send(
       RequestMessage(
         `method`: meth,
         params: payload.toJson(),
-        id: some toJson($genNanoID())
+        id: some toJson(result)
       )
     )
 
@@ -115,17 +119,4 @@ proc showMessage*(message: string, typ: MessageType) =
   ## Sends a message to be shown in the client
   sendNotification(windowShowMessage, ShowMessageParams(`type`: typ, message: message))
 
-proc showMessageRequest*(message: string, typ: MessageType, actions: openArray[string]) =
-  ## Sends a message to be shown to the client. Contains a list of actions that the
-  ## user can click
-  let actions = collect:
-    for action in actions:
-      MessageActionItem(title: action)
-  sendRequestMessage(
-    windowShowMessageRequest,
-    ShowMessageRequestParams(
-      `type`: typ,
-      message: message,
-      actions: actions
-    )
-  )
+

@@ -112,6 +112,7 @@ lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams)
       lockFile = root/"nimble.lock"
     if not (fileExists(lockFile) and fileExists(pathsFile)):
       debug "Not initialised"
+      h.server[].showMessageRequest("Hello", Debug, ["AAAA"])
 
 
 
