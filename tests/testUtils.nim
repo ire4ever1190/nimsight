@@ -65,3 +65,50 @@ suite "Union":
     test "Invalid JSON still fails":
       expect ValueError:
         discard newJInt(0).jsonTo(FooBar)
+
+suite "ref case":
+  type
+    Parent = ref object of RootObj
+    ChildA = ref object of Parent
+      foo: string
+    ChildB = ref object of Parent
+      bar: string
+    ChildC = ref object of Parent
+      foo: string
+
+  test "Can access field":
+    let x = Parent(ChildA(foo: "test"))
+    var foo = ""
+    case x:
+    of ChildA:
+      foo = x.foo
+    else: discard
+    check foo == "test"
+
+  test "Can have multiple items":
+    let x = Parent(ChildA(foo: "test"))
+    var foo = ""
+    case x:
+    of ChildC, ChildA:
+      foo = x.foo
+    else: discard
+    check foo == "test"
+
+  test "Else branch works":
+    let x = Parent(ChildB(bar: "test"))
+    var foo = ""
+    case x:
+    of ChildC, ChildA:
+      foo = x.foo
+    else:
+      foo = "no foo"
+    check foo == "no foo"
+
+  test "Can use in an expression":
+    let x = Parent(ChildA(foo: "test"))
+    let res = case x
+      of ChildC, ChildA:
+        x.foo
+      else:
+        "no foo"
+    check res == "test"

@@ -54,7 +54,12 @@ proc writeHeader(f: File, name: string, val: string) =
 
 proc id*(m: Message): JsonNode =
   ## Tries to get the ID of a message
-  (if m of RequestMessage: RequestMessage(m).id else: none(JsonNode)).get(newJNull())
+  let res = caseOf m:
+    of RequestMessage, ResponseMessage:
+      m.id
+    else:
+      none(JsonNode)
+  res.get(newJNull())
 
 proc writeResponse(respBody: string) =
   ## Writes the result to stdout and flushes so client can read it

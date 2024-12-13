@@ -84,16 +84,22 @@ const NimblePkgVersion {.strdefine.} = "Unknown"
 
 proc put*[T](table: var ResponseTable, id: string, data: sink T) =
   ## Sets the response value in the table
-  withLock table.cond:
-    table.id = id
-    table.data = addr data
-    wasMoved(data)
-    while table.data != nil: discard
+  debug "ID: ", id
+  table.id = id
+  table.data = addr data
+  debug "Sending the data"
+  table.cond.broadcast()
+  wasMoved(data)
 
 proc get*[T](table: var ResponseTable, id: string, res: out T) =
   let x = addr table
-  table.cond.wait(proc (): bool = x[].id == id)
+  debug "Awaiting the conditions"
+  table.cond.wait(proc (): bool =
+                  debug "Awoken: ", x[].id
+                  x[].id == id
+                  )
   res = move(cast[ptr T](table.data)[])
+  table.data = nil
 
 proc get*[T](table: var ResponseTable, id: string): T =
   table.get(id, result)

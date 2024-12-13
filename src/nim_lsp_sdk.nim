@@ -14,7 +14,6 @@ using s: var Server
 
 proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
-  debug "Checking: ", uri
   let diagnostics = handle.getDiagnostics(uri)
   sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
     uri: uri,
@@ -44,7 +43,6 @@ lsp.listen(sendDiagnostics) do (h: RequestHandle, params: DocumentUri) {.gcsafe.
     # Cancel any previous request, then register this as the latest
     {.gcsafe.}:
       withLock currentCheckLock:
-        debug "Cancelling previous"
         h.server[].cancel(currentCheck)
         currentCheck = h.id.unsafeGet()
     sleep 100
