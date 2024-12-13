@@ -154,18 +154,19 @@ proc newMessage*(event: static[string], params: getMethodParam(event)): Message 
     result = RequestMessage(`method`: event, params: params.toJson(), id: some id.toJson())
 
 proc meth(x: Message): string =
-  if x of RequestMessage:
-    return RequestMessage(x).`method`
-  elif x of NotificationMessage:
-    return NotificationMessage(x).`method`
-  return ""
+  case x
+  of RequestMessage, NotificationMessage:
+    x.`method`
+  else:
+    ""
 
 proc params(x: Message): JsonNode =
-  if x of RequestMessage:
-    return RequestMessage(x).params
-  elif x of NotificationMessage:
-    return NotificationMessage(x).params.get(newJNull())
-  return newJNull()
+  case x
+  of RequestMessage: x.params
+  of NotificationMessage:
+    x.params.get(newJNull())
+  else:
+    newJNull()
 
 proc updateRequestRunning(s: var Server, id: string, val: bool) =
   ## Updates the request running statusmi

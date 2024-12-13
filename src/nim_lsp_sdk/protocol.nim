@@ -54,9 +54,11 @@ proc writeHeader(f: File, name: string, val: string) =
 
 proc id*(m: Message): JsonNode =
   ## Tries to get the ID of a message
-  let res = caseOf m:
-    of RequestMessage, ResponseMessage:
+  let res = case m:
+    of RequestMessage:
       m.id
+    of ResponseMessage:
+      some m.id
     else:
       none(JsonNode)
   res.get(newJNull())
