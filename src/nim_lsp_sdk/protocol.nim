@@ -54,14 +54,13 @@ proc writeHeader(f: File, name: string, val: string) =
 
 proc id*(m: Message): JsonNode =
   ## Tries to get the ID of a message
-  let res = case m:
-    of RequestMessage:
-      m.id
-    of ResponseMessage:
-      some m.id
-    else:
-      none(JsonNode)
-  res.get(newJNull())
+  case m:
+  of RequestMessage:
+    m.id.get(newJNull())
+  of ResponseMessage:
+    m.id
+  else:
+    newJNull()
 
 proc writeResponse(respBody: string) =
   ## Writes the result to stdout and flushes so client can read it
@@ -121,6 +120,8 @@ proc sendRequestMessage*(meth: static[string], payload: getMethodParam(meth)): s
         id: some toJson(result)
       )
     )
+
+
 
 proc showMessage*(message: string, typ: MessageType) =
   ## Sends a message to be shown in the client

@@ -84,25 +84,63 @@ const NimblePkgVersion {.strdefine.} = "Unknown"
 
 proc put*[T](table: var ResponseTable, id: string, data: sink T) =
   ## Sets the response value in the table
-  debug "ID: ", id
   table.id = id
   table.data = addr data
-  debug "Sending the data"
   table.cond.broadcast()
+  # Wait for the listener to signal they have got the value
+  withLock table.cond: discard
   wasMoved(data)
 
 proc get*[T](table: var ResponseTable, id: string, res: out T) =
   let x = addr table
-  debug "Awaiting the conditions"
   table.cond.wait(proc (): bool =
-                  debug "Awoken: ", x[].id
                   x[].id == id
                   )
   res = move(cast[ptr T](table.data)[])
+  debug res
   table.data = nil
+  release table.cond
 
 proc get*[T](table: var ResponseTable, id: string): T =
   table.get(id, result)
+
+proc sendRecvMessage(
+  server: var Server,
+  meth: static[string],
+  params: getMethodParam(meth)
+): getMethodReturn(meth) =
+  ## Sends a message to the client, and then blocks until it reads a response
+  let id = sendRequestMessage(
+    meth,
+    params
+  )
+  let data = server.results.get[:JsonNode](id)
+  debug data.pretty()
+  result.fromJson(data)
+
+proc showMessageRequest*(
+  server: var Server,
+  message: string,
+  typ: MessageType,
+  actions: openArray[string]
+): Option[string] =
+  ## Sends a message to be shown to the client. Contains a list of actions that the
+  ## user can click.
+  ## Returns the action clicked, if they did
+  let actions = collect:
+    for action in actions:
+      MessageActionItem(title: action)
+
+  let resp = server.sendRecvMessage(
+    windowShowMessageRequest,
+    ShowMessageRequestParams(
+      `type`: typ,
+      message: message,
+      actions: actions
+    )
+  )
+  if resp.isSome():
+    return some resp.unsafeGet().title
 
 proc addHandler(server: var Server, event: string, handler: Handler) =
   ## Internal method for adding handler.
@@ -218,7 +256,8 @@ proc workerThread(server: ptr Server) {.thread.} =
     # We are only reading this so it should be fine right??
     if request of ResponseMessage:
       let resp = ResponseMessage(request)
-      server[].results.put($resp.id, resp.params)
+      debug resp.`result`.unsafeGet().pretty()
+      server[].results.put(resp.id.getStr(), resp.params)
       continue
 
     if request.meth in server[].listeners:
@@ -297,29 +336,6 @@ proc poll*(server: var Server) =
         server.queue(request)
       else:
         request.respond(ServerError(code: InvalidRequest, msg: "Server is shutting down"))
-
-
-proc showMessageRequest*(
-  server: var Server,
-  message: string,
-  typ: MessageType,
-  actions: openArray[string]
-) =
-  ## Sends a message to be shown to the client. Contains a list of actions that the
-  ## user can click
-  let actions = collect:
-    for action in actions:
-      MessageActionItem(title: action)
-
-  let id = sendRequestMessage(
-    windowShowMessageRequest,
-    ShowMessageRequestParams(
-      `type`: typ,
-      message: message,
-      actions: actions
-    )
-  )
-  debug pretty(server.results.get[:JsonNode](id))
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers
