@@ -71,7 +71,6 @@ proc parseFile*(x: var Files, path: DocumentURI, version = NoVersion): ParsedFil
 
 proc put*(x: var Files, path: DocumentURI, data: string, version: int) =
   ## Adds a file into the file cache
-  debug(fmt"Adding {path}")
   x.put(path, StoredFile(version: version, content: data))
 
 # proc set*(x: var Files, path: string, errors: sink seq[ParsedError]) =

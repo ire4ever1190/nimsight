@@ -1,7 +1,7 @@
-import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar]
+import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths]
 
-import utils, types, protocol, hooks, params, ./logging, ./files, ./customast
-import utils/ast
+import utils, types, protocol, hooks, params, ./logging, ./files, ./customast, methods
+import utils/[ast, locks]
 
 import threading/[channels, rwlock]
 
@@ -11,6 +11,18 @@ type
   Handler* = proc (handle: RequestHandle, x: JsonNode): Option[JsonNode] {.gcsafe.}
     ## Handler for a method. Uses JsonNode to perform type elision,
     ## gets converted into approiate types inside
+
+  ResponseTable* = object
+    ## Central location for waiting on responses to messages
+    ## sent to the client
+    cond: ConditionVar
+      ## Condition which signals that a thread should check if
+      ## it can read the response
+    id: string
+      ## ID that has been sent
+    data: pointer
+      ## Pointer containing the data
+
   Server* = object
     listeners: Table[string, Handler]
     queue: Chan[Message]
@@ -27,6 +39,10 @@ type
       ## Stores all the files in use by the server
     running: Atomic[bool]
       ## Tracks if the server is shutting down or not
+    roots*: seq[Path]
+      ## Workspace roots
+    resultsLock*: RwLock
+    results*: ResponseTable
     name*: string
     version*: string
 
@@ -65,6 +81,80 @@ proc isRunning*(s: var Server): bool {.inline.} = s.running.load()
 
 const NimblePkgVersion {.strdefine.} = "Unknown"
   ## Default to using the version defined by nimble
+
+proc put*[T](table: var ResponseTable, id: string, data: sink T) =
+  ## Sets the response value in the table
+  table.id = id
+  table.data = addr data
+  table.cond.broadcast()
+  # Data should move quick, just do a spinlock
+  while not table.data.isNil: discard
+  wasMoved(data)
+
+proc get*[T](table: var ResponseTable, id: string, res: out T) =
+  let x = addr table
+  table.cond.wait(proc (): bool =
+                  x[].id == id
+                  )
+  res = move(cast[ptr T](table.data)[])
+  table.data = nil
+  release table.cond
+
+proc get*[T](table: var ResponseTable, id: string): T =
+  table.get(id, result)
+
+proc sendRecvMessage(
+  server: var Server,
+  meth: static[string],
+  params: getMethodParam(meth)
+): getMethodReturn(meth) =
+  ## Sends a message to the client, and then blocks until it reads a response
+  let id = sendRequestMessage(
+    meth,
+    params
+  )
+  let data = server.results.get[:JsonNode](id)
+  debug data.pretty()
+  result.fromJson(data)
+
+proc showMessageRequest*(
+  server: var Server,
+  message: string,
+  typ: MessageType,
+  actions: openArray[string]
+): Option[string] =
+  ## Sends a message to be shown to the client. Contains a list of actions that the
+  ## user can click.
+  ## Returns the action clicked, if they did
+  let actions = collect:
+    for action in actions:
+      MessageActionItem(title: action)
+
+  let resp = server.sendRecvMessage(
+    windowShowMessageRequest,
+    ShowMessageRequestParams(
+      `type`: typ,
+      message: message,
+      actions: actions
+    )
+  )
+  if resp.isSome():
+    return some resp.unsafeGet().title
+
+proc showMessageRequest*[T: enum](
+  server: var Server,
+  message: string,
+  typ: MessageType,
+  actions: typedesc[T]
+): Option[T] =
+  ## Typed version of [showMessageRequest]
+  const options = collect:
+    for choice in T:
+      $choice
+  let resp = server.showMessageRequest(message, typ, options)
+
+  if resp.isSome():
+    return parseEnum[T](resp.unsafeGet()).some()
 
 proc addHandler(server: var Server, event: string, handler: Handler) =
   ## Internal method for adding handler.
@@ -116,18 +206,19 @@ proc newMessage*(event: static[string], params: getMethodParam(event)): Message 
     result = RequestMessage(`method`: event, params: params.toJson(), id: some id.toJson())
 
 proc meth(x: Message): string =
-  if x of RequestMessage:
-    return RequestMessage(x).`method`
-  elif x of NotificationMessage:
-    return NotificationMessage(x).`method`
-  return ""
+  case x
+  of RequestMessage, NotificationMessage:
+    x.`method`
+  else:
+    ""
 
 proc params(x: Message): JsonNode =
-  if x of RequestMessage:
-    return RequestMessage(x).params
-  elif x of NotificationMessage:
-    return NotificationMessage(x).params.get(newJNull())
-  return newJNull()
+  case x
+  of RequestMessage: x.params
+  of NotificationMessage:
+    x.params.get(newJNull())
+  else:
+    newJNull()
 
 proc updateRequestRunning(s: var Server, id: string, val: bool) =
   ## Updates the request running statusmi
@@ -177,6 +268,11 @@ proc workerThread(server: ptr Server) {.thread.} =
     let id = request.id
     # TODO: Break this out into a generic handleMessage() proc
     # We are only reading this so it should be fine right??
+    if request of ResponseMessage:
+      let resp = ResponseMessage(request)
+      server[].results.put(resp.id.getStr(), resp.`result`.unsafeGet)
+      continue
+
     if request.meth in server[].listeners:
       let
         handler = server[].listeners[request.meth]
@@ -254,7 +350,6 @@ proc poll*(server: var Server) =
       else:
         request.respond(ServerError(code: InvalidRequest, msg: "Server is shutting down"))
 
-
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers
   ## some needed handlers to make helpers work
@@ -271,7 +366,7 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
   result.listen("initialize") do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
     # Find what is supported depending on what handlers are registered.
     # Some manual capabilities will also need to be added
-    InitializeResult(
+    result = InitializeResult(
       capabilities: ServerCapabilities(
         codeActionProvider: true,
         documentSymbolProvider: ServerCapabilities.documentSymbolProvider.init(true),
@@ -286,5 +381,8 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
         version: some(r.server[].version)
       )
     )
+    # add all the roots
+    r.server[].roots = params.folders
+    debug r.server[].roots
 
 export hooks

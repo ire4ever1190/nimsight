@@ -1,5 +1,5 @@
 
-import std/[strscans, strutils, syncio, json, jsonutils, options, strformat, tables]
+import std/[strscans, strutils, syncio, json, jsonutils, options, strformat, tables, sequtils, paths, files]
 import std/macros
 import "$nim"/compiler/ast
 import nim_lsp_sdk/[nim_check, server, protocol, customast]
@@ -10,11 +10,16 @@ from nim_lsp_sdk/utils/ast import newIdentNode
 
 import std/locks
 import std/os
+
+type
+  BooleanChoice = enum
+    Yes
+    No
+
 using s: var Server
 
 proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
-  debug "Checking: ", uri
   let diagnostics = handle.getDiagnostics(uri)
   sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
     uri: uri,
@@ -44,7 +49,6 @@ lsp.listen(sendDiagnostics) do (h: RequestHandle, params: DocumentUri) {.gcsafe.
     # Cancel any previous request, then register this as the latest
     {.gcsafe.}:
       withLock currentCheckLock:
-        debug "Cancelling previous"
         h.server[].cancel(currentCheck)
         currentCheck = h.id.unsafeGet()
     sleep 100
@@ -98,10 +102,30 @@ lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionP
     )
 
 
-lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) -> seq[DocumentSymbol] {.gcsafe.}:
+lsp.listen(documentSymbols) do (
+  h: RequestHandle,
+  params: DocumentSymbolParams
+) -> seq[DocumentSymbol] {.gcsafe.}:
   return h.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
 
 lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams):
   logging.info("Client initialised")
+  # Check that if there is a nimble.lock file, there is a nimble.paths file.
+  # This stops the issue of wondering why nim check is complaining about not
+  # finding libraries
+  # TODO: Ask to update lock file if nimble file is updated
+  for root in h.server[].roots:
+    let
+      pathsFile = root/"nimble.paths"
+      lockFile = root/"nimble.lock"
+    if not (fileExists(lockFile) and fileExists(pathsFile)):
+      let msg = """
+        Nimble doesn't seem to be initialised. This can cause problems with checking
+        external libraries. Do you want me to initialise it?
+      """.dedent()
+      let answer = h.server[].showMessageRequest(msg, Debug, BooleanChoice)
+      if answer.get(No) == Yes:
+        discard h.execProcess("nimble", ["setup"], workingDir = $root)
+
 
 lsp.poll()

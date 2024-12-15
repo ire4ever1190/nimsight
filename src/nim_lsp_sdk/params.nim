@@ -1,4 +1,4 @@
-import std/[options, json]
+import std/[options, json, paths]
 
 import types, utils, methods
 
@@ -10,7 +10,7 @@ type
     processId*: Option[int]
     clientInfo*: Option[ClientInfo]
     locale*: Option[string]
-    rootPath*: Option[string]
+    rootPath*: Option[Path]
     rootUri*: Option[DocumentUri]
     initializationOptions*: Option[JsonNode]
     capabilities*: ClientCapabilities
@@ -100,6 +100,11 @@ type
   SymbolTag* = enum
     Deprecated
 
+  ShowMessageRequestParams* = object
+    `type`*: MessageType
+    message*: string
+    actions*: seq[MessageActionItem]
+
   DocumentSymbol* = ref object
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#documentSymbol)
     name*: string
@@ -119,12 +124,25 @@ type
   DidSaveTextDocumentParams* = object
     textDocument*: TextDocumentIdentifier
   InitializedParams* = object
+
+
+func folders*(params: InitializeParams): seq[Path] =
+  ## Returns all the paths that are in the intialisation
+  if params.rootUri.isSome():
+    result &= params.rootUri.unsafeGet().path
+  elif params.rootPath.isSome():
+    result &= params.rootPath.unsafeGet()
+  for folder in params.workspaceFolders.get(@[]):
+    result &= folder.uri.path
+
 #
 # Client messages
 #
 registerClientMessage(pubDiagnotisticsNotification, PublishDiagnosticsParams, void, true)
 registerClientMessage(initializeRequest, InitializeParams, InitializeResult)
 registerClientMessage(logMessage, LogMessageParams, void, true)
+registerClientMessage(windowShowMessage, ShowMessageparams, void, true)
+registerClientMessage(windowShowMessageRequest, ShowMessageRequestParams, Option[MessageActionItem], false)
 
 #
 # Server messages
