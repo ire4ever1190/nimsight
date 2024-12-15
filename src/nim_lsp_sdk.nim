@@ -113,6 +113,7 @@ lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams)
   # Check that if there is a nimble.lock file, there is a nimble.paths file.
   # This stops the issue of wondering why nim check is complaining about not
   # finding libraries
+  # TODO: Ask to update lock file if nimble file is updated
   for root in h.server[].roots:
     let
       pathsFile = root/"nimble.paths"
