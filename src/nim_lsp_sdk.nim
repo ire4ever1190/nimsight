@@ -10,6 +10,12 @@ from nim_lsp_sdk/utils/ast import newIdentNode
 
 import std/locks
 import std/os
+
+type
+  BooleanChoice = enum
+    Yes
+    No
+
 using s: var Server
 
 proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
@@ -96,7 +102,10 @@ lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionP
     )
 
 
-lsp.listen(documentSymbols) do (h: RequestHandle, params: DocumentSymbolParams) -> seq[DocumentSymbol] {.gcsafe.}:
+lsp.listen(documentSymbols) do (
+  h: RequestHandle,
+  params: DocumentSymbolParams
+) -> seq[DocumentSymbol] {.gcsafe.}:
   return h.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
 
 lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams):
@@ -109,9 +118,13 @@ lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams)
       pathsFile = root/"nimble.paths"
       lockFile = root/"nimble.lock"
     if not (fileExists(lockFile) and fileExists(pathsFile)):
-      debug "Not initialised"
-      debug h.server[].showMessageRequest("Hello", Debug, ["AAAA"])
-
+      let msg = """
+        Nimble doesn't seem to be initialised. This can cause problems with checking
+        external libraries. Do you want me to initialise it?
+      """.dedent()
+      let answer = h.server[].showMessageRequest(msg, Debug, BooleanChoice)
+      if answer.get(No) == Yes:
+        discard h.execProcess("nimble", ["setup"], workingDir = $root)
 
 
 lsp.poll()

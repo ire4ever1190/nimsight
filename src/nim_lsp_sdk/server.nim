@@ -87,8 +87,8 @@ proc put*[T](table: var ResponseTable, id: string, data: sink T) =
   table.id = id
   table.data = addr data
   table.cond.broadcast()
-  # Wait for the listener to signal they have got the value
-  withLock table.cond: discard
+  # Data should move quick, just do a spinlock
+  while not table.data.isNil: discard
   wasMoved(data)
 
 proc get*[T](table: var ResponseTable, id: string, res: out T) =
@@ -97,7 +97,6 @@ proc get*[T](table: var ResponseTable, id: string, res: out T) =
                   x[].id == id
                   )
   res = move(cast[ptr T](table.data)[])
-  debug res
   table.data = nil
   release table.cond
 
@@ -141,6 +140,21 @@ proc showMessageRequest*(
   )
   if resp.isSome():
     return some resp.unsafeGet().title
+
+proc showMessageRequest*[T: enum](
+  server: var Server,
+  message: string,
+  typ: MessageType,
+  actions: typedesc[T]
+): Option[T] =
+  ## Typed version of [showMessageRequest]
+  const options = collect:
+    for choice in T:
+      $choice
+  let resp = server.showMessageRequest(message, typ, options)
+
+  if resp.isSome():
+    return parseEnum[T](resp.unsafeGet()).some()
 
 proc addHandler(server: var Server, event: string, handler: Handler) =
   ## Internal method for adding handler.
@@ -256,8 +270,7 @@ proc workerThread(server: ptr Server) {.thread.} =
     # We are only reading this so it should be fine right??
     if request of ResponseMessage:
       let resp = ResponseMessage(request)
-      debug resp.`result`.unsafeGet().pretty()
-      server[].results.put(resp.id.getStr(), resp.params)
+      server[].results.put(resp.id.getStr(), resp.`result`.unsafeGet)
       continue
 
     if request.meth in server[].listeners:

@@ -166,7 +166,7 @@ type
 proc raiseCancelled() {.raises: [ServerError].} =
     raise (ref ServerError)(code: RequestCancelled)
 
-proc execProcess(handle: RequestHandle, cmd: string, args: openArray[string], input = "", workingDir=""): tuple[output: string, code: int] =
+proc execProcess*(handle: RequestHandle, cmd: string, args: openArray[string], input = "", workingDir=""): tuple[output: string, code: int] =
   ## Runs a process, automatically checks if the request has ended and then stops the running process.
   # Don't start a process if the handle is already cancelled
   if not handle.isRunning(): raiseCancelled()

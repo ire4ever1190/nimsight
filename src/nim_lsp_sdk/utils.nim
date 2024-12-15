@@ -81,29 +81,6 @@ macro mixed*(objs: varargs[typed]): typedesc =
   ))
   result = newStmtList(result, name)
 
-
-
-macro caseOf*[T: ref](x: T, branches: varargs[untyped]) =
-  ## Creates a case statement that allows for easily doing multiple `of` branches.
-  ## Each branch is casted into the type if it matches
-  let tmpSym = genSym(nskLet, "")
-  let init = newLetStmt(tmpSym, nnkCall.newTree(
-    nnkPar.newTree(nnkRefTy.newTree(nnkObjectTy.newTree())),
-    x
-  ))
-
-  let ifStmt = nnkIfExpr.newTree()
-  for branch in branches:
-    if branch.kind == nnkOfBranch:
-      for child in branch[0 ..< ^1]:
-        let check = nnkInfix.newTree(ident"of", x, child)
-        let body = branch[^1].copy()
-        body.insert(0, newLetStmt(ident x.strVal, newCall(child, x)))
-        ifStmt &= nnkElifBranch.newTree(check, body)
-    elif branch.kind == nnkElse:
-      ifStmt &= branch
-  newStmtList(init, ifStmt)
-
 macro `case`*(x: ref): untyped =
   ## Creates a case statement that allows for easily doing multiple `of` branches.
   ## Each branch is casted into the type if it matches
