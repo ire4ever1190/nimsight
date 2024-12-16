@@ -88,6 +88,14 @@ lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[Co
     for diag in params.context.diagnostics:
       if err.range == diag.range:
         result &= err.createFix(diag)
+  # See if we can do other stuff with the node
+  let root = h.parseFile(params.textDocument.uri).ast
+  let node = root[].findNode(params.range)
+  if not node.isSome:
+    case node.kind
+    of nkIdent:
+      # Check if the
+
 
 lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionParams) -> Option[Location] {.gcsafe.}:
   let usages = h.findUsages(params.textDocument.uri, params.position)
@@ -118,7 +126,7 @@ lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams)
     let
       pathsFile = root/"nimble.paths"
       lockFile = root/"nimble.lock"
-    if not (fileExists(lockFile) and fileExists(pathsFile)):
+    if fileExists(lockFile) and not fileExists(pathsFile):
       let msg = """
         Nimble doesn't seem to be initialised. This can cause problems with checking
         external libraries. Do you want me to initialise it?
