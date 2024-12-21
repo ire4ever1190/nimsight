@@ -8,6 +8,8 @@ import nim_lsp_sdk/[types, params, methods, utils, logging, errors]
 
 from nim_lsp_sdk/utils/ast import newIdentNode
 
+import nim_lsp_sdk/codeActions
+
 import std/locks
 import std/os
 
@@ -78,24 +80,8 @@ lsp.listen(selectionRange) do (h: RequestHandle, params: SelectionRangeParams) -
       result &= root.toSelectionRange(node.unsafeGet())
 
 lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction] {.gcsafe.}:
-  # Find actions for errors
-  # Literal braindead implementation. Rerun the checks and try to match it up.
-  # Need to do something like
-  let errors = h.getErrors(params.textDocument.uri)
-  # First we find the error that matches. Since they are parsed the same we should
-  # be able to line them up exactly
-  for err in errors:
-    for diag in params.context.diagnostics:
-      if err.range == diag.range:
-        result &= err.createFix(diag)
-  # See if we can do other stuff with the node
-  let root = h.parseFile(params.textDocument.uri).ast
-  let node = root[].findNode(params.range)
-  if not node.isSome:
-    case node.kind
-    of nkIdent:
-      # Check if the
-
+  # Find the node that the params are referring to
+  return getCodeActions(h, params)
 
 lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionParams) -> Option[Location] {.gcsafe.}:
   let usages = h.findUsages(params.textDocument.uri, params.position)

@@ -126,23 +126,6 @@ proc outlineDocument*(x: NodePtr): seq[DocumentSymbol] =
     else: discard
   return symbols
 
-proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
-  ## Returns possibly fixes for an error
-  case e.kind
-  of Unknown:
-    result = newSeq[CodeAction]()
-    for option in e.possibleSymbols:
-      result &= CodeAction(
-        title: option,
-        diagnostics: some @[diagnotic],
-        edit: some WorkspaceEdit(
-            changes: some toTable({
-              DocumentURI("file://" & e.file): @[e.node.editWith(newIdentNode(option))]
-            })
-          )
-      )
-  else: discard
-
 func contains*(r: Range, p: Position): bool =
   ## Returns true if a position is within a range
   # For start/end, we need to check columns

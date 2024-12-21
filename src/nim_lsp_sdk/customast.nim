@@ -33,9 +33,14 @@ type
     idx: NodeIdx
 
   Tree = ref seq[Node]
-  TreeView = openArray[Node]
+  TreeView* = openArray[Node]
 
-  ParsedFile* = tuple[idx: FileIndex, ast: Tree]
+  ParsedFile* = tuple[idx: FileIndex, ast: Tree, errs: seq[ParserError]]
+
+  ParserError* = object
+    info: TLineInfo
+    msg: TMsgKind
+    arg: string
 
 func `[]`*(p: NodePtr): lent Node {.gcsafe.} =
   ## Derefences a node
@@ -189,20 +194,24 @@ proc toPNode*(tree: TreeView): PNode =
   ## Converts a custom AST into a `PNode`
   tree.toPNode(tree.low.NodeIdx)
 
-proc ignoreErrors(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) =
-  # TODO: Don't ignore errors
-  discard
-
 proc parseFile*(x: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
   ## Parses a document. Doesn't perform any semantic analysis
   var conf = newConfigRef()
   let fileIdx = fileInfoIdx(conf, AbsoluteFile x)
+
+  # Collect all the errors. Collecting them now allows us to show them
+  # before nim check happens
+  var errors: seq[ParserError] = @[]
+  proc errHandler(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) =
+    errors &= ParserError(info: info, msg: msg, arg: arg)
+
+  # Run the parser
   var p: Parser
   {.gcsafe.}:
     parser.openParser(p, fileIdx, llStreamOpen(content), newIdentCache(), conf)
     defer: closeParser(p)
-    p.lex.errorHandler = ignoreErrors
-    result = (fileIdx, parseAll(p).toTree())
+    p.lex.errorHandler = errHandler
+    result = (fileIdx, parseAll(p).toTree(), errors)
 
 proc nameNode*(x: NodePtr): NodePtr =
   ## Returns the node that stores the name
@@ -259,6 +268,12 @@ proc findNode*(t: TreeView, pos: Position): Option[NodeIdx] =
       endPos = node.endInfo.initPos()
     if startPos <= pos and pos <= endPos:
       result = some idx.NodeIdx
+
+proc findNode*(t: TreeView, r: Range): Option[NodeIdx] =
+  # TODO: Solidify the semantics. Do I return any node in the range or just nodes that touch the range?
+  # Looks like ZLS just uses the start of the range so might just do that
+  # https://github.com/zigtools/zls/blob/master/src/features/code_actions.zig#L90
+  findNode(t, r.start)
 
 
 proc findNode*(t: Tree, line, col: uint, careAbout: FileIndex): Option[NodePtr] =
