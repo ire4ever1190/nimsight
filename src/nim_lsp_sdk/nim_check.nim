@@ -218,7 +218,7 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
     workingDir = $x.path.parentDir()
   )
 
-  let (fIdx, root) = handle.parseFile(x)
+  let (fIdx, root, _) = handle.parseFile(x)
   for error in outp.split('\31'):
     let lines = error.splitLines()
     for i in 0..<lines.len:
