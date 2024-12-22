@@ -16,7 +16,7 @@ type
     ## Index into the tree
   Node* {.acyclic.} = object
     info*, endInfo*: TLineInfo
-    parent: NodeIdx
+    parent*: NodeIdx
     case kind*: TNodeKind
     of nkCharLit..nkUInt64Lit:
       intVal*: BiggestInt
@@ -70,6 +70,7 @@ func `[]`*(p: NodePtr, child: int): NodePtr =
   ## Returns the n'th son of a node
   result = p
   result.idx = p[].sons[child]
+
 
 func root*(a: TreeView): Node =
   ## Returns the first node in a [Tree]
@@ -265,7 +266,8 @@ proc findNode*(t: TreeView, pos: Position): Option[NodeIdx] =
     let
       startPos = node.info.initPos()
       endPos = node.endInfo.initPos()
-    if startPos <= pos and pos <= endPos:
+      isEmpty = node.kind == nkEmpty
+    if not isEmpty and startPos <= pos and pos <= endPos:
       result = some idx.NodeIdx
 
 proc findNode*(t: TreeView, r: Range): Option[NodeIdx] =

@@ -4,7 +4,6 @@ import ../types
 
 import std/[strformat, options]
 
-
 proc nameNode*(x: PNode): PNode =
   ## Returns the node that stores the name
   case x.kind
