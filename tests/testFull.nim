@@ -8,7 +8,7 @@ proc checkDiff(inputFile: string) =
     expected = file.changeFileExt("expected")
     actual = file.changeFileExt("out")
   # Run diff on them
-  let process = startProcess("diff", args = [$expected, $actual], options={poStdErrToStdOut, poUsePath})
+  let process = startProcess("diff", args = ["-y", $expected, $actual], options={poStdErrToStdOut, poUsePath})
   defer: process.close()
   let code = process.waitForExit()
   checkpoint process.outputStream.readAll()
@@ -59,7 +59,7 @@ proc parseCommands(x: string): seq[string] =
       let
         line = lines[i]
         col = line.indentation()
-      result &= fmt":cal cursor({i}, {col})"
+      result &= fmt":cal cursor({i}, {col + 1})"
       let (ok, command) = line.strip().scanTuple("^$+]#")
       assert ok, line
       result &= command.strip()
@@ -104,6 +104,9 @@ test "Can get diagnostics":
 suite "Code actions":
   test "Function rename":
     discard nvimTest("codeAction")
+
+  test "Making fields public in an object":
+    checkpoint nvimTest("codeActions/publicFields")
 
 test "Outline":
   let output = nvimTest("outline")

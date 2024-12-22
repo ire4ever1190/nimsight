@@ -46,8 +46,12 @@ func `[]`*(p: NodePtr): lent Node {.gcsafe.} =
   ## Derefences a node
   p.tree[p.idx]
 
+func idx*(x: NodePtr): NodeIdx = x.idx
+
 func `$`*(p: Node): string =
   return fmt"{p.kind} @ {p.info.line}:{p.info.col}"
+
+func `$`*(p: NodePtr): string = $p[]
 
 func getPtr*(t: Tree, idx: NodeIdx): NodePtr =
   ## Gets a [NodePtr] for an index
@@ -85,6 +89,10 @@ func hasSons*(a: Node | NodePtr): bool {.inline.} =
   ## Returns tree if a node has sons and can be iterated through
   a.kind notin noSons
 
+func len*(n: NodePtr): int =
+  ## Returns number of children a node has
+  return n[].sons.len
+
 iterator sons*(tree: TreeView, idx: NodeIdx): lent Node =
   for son in tree[idx].sons:
     yield tree[son]
@@ -97,6 +105,11 @@ func parent*(n: NodePtr): NodePtr =
   ## Returns the parent node
   n.getPtr(n[].parent)
 
+func parent*(n: NodePtr, skip: set[TNodeKind]): NodePtr =
+  ## Returns the parent node, skipping anything in `skip`
+  result = n.parent
+  while result.kind in skip:
+    result = result.parent
 
 func `==`*(a, b: Node): bool =
   ## Checks if two nodes are equal.

@@ -152,9 +152,13 @@ register_cmd("CodeAction", function (opts)
       diagnostics = get_diagnostics()
     },
     apply = true,
+    filter = function ()
+      println("Checking this")
+      coroutine.resume(cmds, "textDocument/codeAction")
+      return true
+    end,
     range = {start = pos, ["end"] = pos}
   })
-  coroutine.resume(cmds, "textDocument/codeAction")
 end, {})
 
 -- Saves the file in a knowable place
