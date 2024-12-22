@@ -5,10 +5,10 @@
 import ../[errors, types, params, server, customast, nim_check]
 import ../utils/ast
 import ./utils
-import std/[strformat, options, tables, sugar]
+import std/[strformat, options, tables, sugar, logging]
 
 
-proc createFix*(e: ParsedError, node: NodePtr, diagnotic: Diagnostic): seq[CodeAction] =
+proc createFix*(e: ParsedError, node: NodePtr, diagnotics: seq[Diagnostic]): seq[CodeAction] =
   ## Returns possibly fixes for an error
   case e.kind
   of Unknown:
@@ -16,7 +16,7 @@ proc createFix*(e: ParsedError, node: NodePtr, diagnotic: Diagnostic): seq[CodeA
     for option in e.possibleSymbols:
       result &= CodeAction(
         title: fmt"Rename to `{option}`",
-        diagnostics: some @[diagnotic],
+        diagnostics: some newSeq[Diagnostic](),
         edit: some WorkspaceEdit(
             changes: some toTable({
               DocumentURI("file://" & e.location.file): @[node.editWith(newIdentNode(option))]
@@ -29,25 +29,24 @@ proc createFix*(e: ParsedError, node: NodePtr, diagnotic: Diagnostic): seq[CodeA
 proc fixError(
   handle: RequestHandle,
   params: CodeActionParams,
-  ast: TreeView,
+  ast: Tree,
   node: NodeIdx): seq[CodeAction] =
   ## Create fixes for some errors/warnings that appear
   # Go through every error and create a fix.
   # Slighly wrong with how it works, need a way to line up diagnostics
   # with the errors
-  let tree = handle.parseFile(params.textDocument.uri).ast
 
   # Lookup the nodes for each error
   let mappedErrors = collect:
     for error in handle.getErrors(params.textDocument.uri):
-      let node = tree.findNode(error.location)
+      let node = ast.findNode(error.location)
       if node.isSome():
-        (error, tree.getPtr(node.unsafeGet()))
+        (error, ast.getPtr(node.unsafeGet()))
 
-  for diag in params.context.diagnostics:
-    for (error, node) in mappedErrors:
-      # TODO: Not make this this bad
-      if node.initRange == diag.range:
-        result &= error.createFix(node, diag)
+  let targetRange = ast.getPtr(node).initRange
+
+  for (error, node) in mappedErrors:
+    if node.initRange == targetRange:
+      result &= error.createFix(node, params.context.diagnostics)
 
 registerProvider(fixError)
