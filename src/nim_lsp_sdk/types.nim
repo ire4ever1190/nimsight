@@ -448,3 +448,4 @@ proc initPos*(line: SomeInteger, col: SomeInteger): Position =
     result.character = uint col - 1
   if line != 0:
     result.line = uint line - 1
+

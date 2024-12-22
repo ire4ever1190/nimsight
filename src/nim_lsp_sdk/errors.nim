@@ -1,4 +1,4 @@
-import std/[pegs, sequtils]
+import std/[pegs, sequtils, strutils, sugar, strformat]
 
 import types, customast
 
@@ -23,15 +23,25 @@ type
       ## Either the import is unused or duplicated
     # TODO: case statement missing cases, deprecated/unused
 
+  NimLocation = object
+    ## Location, but lines are in Nim format (1 indexed for lines/columns)
+    file*: string
+    line*, col*: uint
+
+  RelatedInfo = object
+    ## Other messages that are related to an error.
+    ## Things like template instanitations
+    location: NimLocation
+    msg: string
 
   ParsedError* = object
-    ## Error message put into a structure that I can more easily display
-    ## Wish the compiler had a structured errors mode
-    name*: string
+    ## Nim error that is parsed into a structured format
+    msg*: string
       ## The name given in the first line
-    node*: NodePtr
     severity*: DiagnosticSeverity
-    file*: string
+    location*: NimLocation
+    relatedInfo*: seq[RelatedInfo]
+      ## Other positions that are relevant to this error
     case kind*: ErrorKind
     of Any, RemovableModule:
       fullText*: string
@@ -41,23 +51,15 @@ type
     of Unknown, AmbigiousIdentifier:
       possibleSymbols*: seq[string]
 
-  ErrorPart = object
-    ## Parsed version of an error message.
-    ## Bit easier to handle compared to a raw string for parsing
-    name: string
-    severity: DiagnosticSeverity
-    file: string
-    line, col: uint
-    instantiations: seq[ErrorPart]
-      ## All the instantiation messages that come before it
-
-func range*(e: ParsedError): Range {.gcsafe.} =
-  ## Start/end position that the error corresponds to
-  e.node.initRange()
+const unitSep* = '\31'
+  ## Separator Nim compiler uses to split error messages
 
 let grammar = peg"""
-msgLine <- {path} position ' ' ((&errorLevel {errorLevel} ': ' {@}internalName) / instantiation) \n
-instantiation <- 'template/generic instantiation of `' {@} '` from here'
+msgLine <- {path} position ' ' ((&errorLevel {errorLevel} ': ' {@}($ / internalName)) / {instantiation} \n)
+instantiation <-
+  ('template/generic instantiation of `' @ '` from here') /
+  'template/generic instantiation from here'
+
 # The name that the compiler uses internally
 internalName <- '[' @ ']'
 errorLevel <- 'Hint' / 'Warning' / 'Error'
@@ -65,6 +67,12 @@ position <- '(' {\d+} ', ' {\d+} ')'
 # Match until we reach the (line, col)
 path <- (!position .)*
 """
+
+iterator msgChunks(msg: string): string =
+  ## Returns each msg chunk from Nim output.
+  for msg in msg.split(unitSep):
+    if not msg.isEmptyOrWhitespace():
+      yield msg
 
 proc splitMsgLines(msg: string): seq[string] =
   ## Splits a full error message into a series of lines
@@ -90,10 +98,10 @@ macro matches(inp, pat: string, variables: untyped): bool =
   vars &= call
 
   result = newStmtList(nnkLetSection.newTree(vars), okSym)
+  echo result.toStrLit()
 
 macro `case`(match: Match): untyped =
   ## Macro for nicely matching a string against a series of patterns.
-  echo match.treeRepr
   # Input is the string to match against
   let inp = match[0][1]
 
@@ -113,21 +121,76 @@ macro `case`(match: Match): untyped =
       newEmptyNode(),
       newIfStmt((check, body))
     )
+  echo result.toStrLit
 
-proc parseError*(msg: string, node: NodePtr): ParsedError =
+func toDiagnosticSeverity(x: sink string): DiagnosticSeverity =
+  ## Returns the diagnostic severity for a string e.g. Hint, Warning
+  case x
+  of "Hint": DiagnosticSeverity.Hint
+  of "Warning": DiagnosticSeverity.Warning
+  of "Error": DiagnosticSeverity.Error
+  else:
+    # Spec mentions to interpret as Error if missing
+    DiagnosticSeverity.Error
+
+proc parseError*(msg: string): ParsedError =
   ## Given a full error message, it returns a parsed error.
   ## "full errror message" meaning it handles a full block separated by UnitSep (See --unitsep in Nim).
+  # Parse out information from the error message.
+  # All 'generic/template instantiation' messages come before the actual message
   let
     lines = splitMsgLines(msg)
     error = lines[^1]
     instantiations = lines[0 ..< ^1]
-  var matches = newSeq[string](5)
-  doAssert error.match(grammar, matches)
 
-  let msg = matches[4]
+  # Now parse actual info from the messages
+  var matches = default(array[5, string])
+  doAssert error.match(grammar, matches)
+  let
+    file = matches[0]
+    line = matches[1].parseUInt()
+    col = matches[2].parseUInt()
+    lvl = matches[3].toDiagnosticSeverity()
+    msg = matches[4]
+
+  result = ParsedError(
+    location: NimLocation(
+      file: file,
+      line: line,
+      col: col
+    ),
+    msg: error,
+    severity: lvl,
+    kind: Any,
+    fullText: error
+  )
+
+  # Add the instanitations as related information
+  for inst in instantiations:
+    var matches = default(array[5, string])
+    doAssert inst.match(grammar, matches)
+    result.relatedInfo &= RelatedInfo(
+      msg: matches[^1],
+      location: NimLocation(
+        file: matches[0],
+        line: matches[1].parseUInt(),
+        col: matches[2].parseUint()
+      )
+    )
+
+  # Try and match the message against some patterns
   case match(msg):
-  of "'$w' is declared but not used" as (ident):
-    discard
-  of "undeclared identifier: '$w'" as (ident):
-    echo rest
-    discard
+  of "undeclared identifier: '$w'$scandidates (edit distance, scope distance); see '--spellSuggest':$s$*" as (ident, rest):
+    # Parse out the different options
+    let options = collect:
+      for line in rest.splitLines():
+        let (ok, _, _, ident) = line.scanTuple("($i, $i): '$+'$.")
+        if ok:
+          ident
+    # Make the error more concise
+    result.msg = fmt"Undeclared identifier: '{ident}'"
+
+    # Assign the options
+    {.cast(uncheckedAssign).}:
+      result.kind = Unknown
+      result.possibleSymbols = options
