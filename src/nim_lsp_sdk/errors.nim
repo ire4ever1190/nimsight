@@ -28,11 +28,11 @@ type
     file*: string
     line*, col*: uint
 
-  RelatedInfo = object
+  RelatedInfo* = object
     ## Other messages that are related to an error.
     ## Things like template instanitations
-    location: NimLocation
-    msg: string
+    location*: NimLocation
+    msg*: string
 
   ParsedError* = object
     ## Nim error that is parsed into a structured format
@@ -159,7 +159,7 @@ proc parseError*(msg: string): ParsedError =
       line: line,
       col: col
     ),
-    msg: error,
+    msg: msg,
     severity: lvl,
     kind: Any,
     fullText: error
@@ -170,7 +170,7 @@ proc parseError*(msg: string): ParsedError =
     var matches = default(array[5, string])
     doAssert inst.match(grammar, matches)
     result.relatedInfo &= RelatedInfo(
-      msg: matches[^1],
+      msg: matches[3],
       location: NimLocation(
         file: matches[0],
         line: matches[1].parseUInt(),

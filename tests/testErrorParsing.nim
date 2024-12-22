@@ -33,6 +33,21 @@ candidates (edit distance, scope distance); see '--spellSuggest':
     check err.possibleSymbols == @["world"]
 
   test "Nothing possible":
-    let msg = "/home/jake/Documents/projects/nim-lsp-sdk/tests/errorParsingAuxFile.nim(17, 6) Error: undeclared identifier: 'p'"
+    let msg = "file.nim(17, 6) Error: undeclared identifier: 'p'"
     let err = msg.parseError()
     check err.kind == Any
+
+test "Template instantiations":
+  let msg = """
+file.nim(3, 4) template/generic instantiation of `foo` from here
+file.nim(2, 10) Error: test"""
+  let err = msg.parseError()
+  check err.msg == "test"
+  check err.location == NimLocation(file: "file.nim", line: 2, col: 10)
+  check err.relatedInfo == @[
+    RelatedInfo(
+      location: NimLocation(file: "file.nim", line: 3, col: 4),
+      msg: "template/generic instantiation of `foo` from here"
+    )
+  ]
+
