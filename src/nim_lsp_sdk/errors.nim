@@ -117,9 +117,14 @@ func toDiagnosticSeverity(x: sink string): DiagnosticSeverity =
     # Spec mentions to interpret as Error if missing
     DiagnosticSeverity.Error
 
-proc parseError*(msg: string): ParsedError =
+proc parseError*(msg: string, stdinFile: string = ""): ParsedError =
   ## Given a full error message, it returns a parsed error.
   ## "full errror message" meaning it handles a full block separated by UnitSep (See --unitsep in Nim).
+  ##
+  ## - `stdinFile`: File to replace the stdin file with for better error messages
+  template fixFile(x: string): string =
+    if x == "stdinfile.nim": stdinFile else: x
+
   # Parse out information from the error message.
   # All 'generic/template instantiation' messages come before the actual message
   let
@@ -129,9 +134,10 @@ proc parseError*(msg: string): ParsedError =
 
   # Now parse actual info from the messages
   var matches = default(array[5, string])
-  doAssert error.match(grammar, matches)
+  {.cast(gcsafe).}:
+    doAssert error.match(grammar, matches)
   let
-    file = matches[0]
+    file = matches[0].fixFile()
     line = matches[1].parseUInt()
     col = matches[2].parseUInt()
     lvl = matches[3].toDiagnosticSeverity()
@@ -139,7 +145,7 @@ proc parseError*(msg: string): ParsedError =
 
   result = ParsedError(
     location: NimLocation(
-      file: file,
+      file: file.fixFile(),
       line: line,
       col: col
     ),
@@ -151,11 +157,12 @@ proc parseError*(msg: string): ParsedError =
   # Add the instanitations as related information
   for inst in instantiations:
     var matches = default(array[5, string])
-    doAssert inst.match(grammar, matches)
+    {.cast(gcsafe).}:
+      doAssert inst.match(grammar, matches)
     result.relatedInfo &= RelatedInfo(
       msg: matches[3],
       location: NimLocation(
-        file: matches[0],
+        file: matches[0].fixFile(),
         line: matches[1].parseUInt(),
         col: matches[2].parseUint()
       )

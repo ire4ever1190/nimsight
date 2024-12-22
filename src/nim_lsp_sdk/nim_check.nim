@@ -172,7 +172,6 @@ proc findUsages*(handle: RequestHandle, file: DocumentURI, pos: Position): Optio
   ## what stability is like lol
   # Use refc to get around https://github.com/nim-lang/Nim/issues/22205
   let (outp, status) = handle.execProcess("nim", @["check", "--ic:on", "--mm:refc", fmt"--defusages:{file},{pos.line + 1},{pos.character + 1}"] & ourOptions & $file.path)
-  echo outp
   if status == QuitFailure: return
   var s = SymbolUsage()
   for lineStr in outp.splitLines():
@@ -200,6 +199,9 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
     input=file.content,
     workingDir = $x.path.parentDir()
   )
+
+  for chunk in outp.msgChunks:
+    result &= chunk.parseError($x.path)
 
   # Store the errors in the cache
   file.errors = result
