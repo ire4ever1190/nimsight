@@ -69,7 +69,7 @@ instantiation <-
   'template/generic instantiation from here'
 
 # The name that the compiler uses internally
-internalName <- '[' @ ']'
+internalName <- '[' @ ']' $
 errorLevel <- 'Hint' / 'Warning' / 'Error'
 position <- '(' {\d+} ', ' {\d+} ')'
 # Match until we reach the (line, col)
@@ -194,8 +194,9 @@ proc parseError*(msg: string, stdinFile = ""): ParsedError =
       result.kind = Unknown
       result.possibleSymbols = options
   of "'$w' can have side effects$s$*" as (ident, calls):
-    # Add the calls as related information
     result.msg = fmt"'{ident}' can have side effects"
+
+    # Add the calls as related information
     for line in calls.splitLines():
       if line.isEmptyOrWhitespace(): continue
       let err = line.strip(chars = {'>'} + Whitespace).readError(stdinFile)

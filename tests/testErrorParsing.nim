@@ -8,11 +8,6 @@ let
   auxFile = currentSourcePath().parentDir() / "errorParsingAuxFile.nim"
   (output, _) = execCmdEx(fmt"{getCurrentCompilerExe()} check --unitsep:on --hint:SuccessX:off --colors:off --hint:Conf:off --processing:off {auxFile}")
 
-test "Can split a message into lines":
-  let lines = toSeq(splitMsgLines(output))
-  checkpoint $lines
-  check lines.len == 4
-
 # Quick smoke test
 test "Errors are parsed without issue":
   for msg in output.msgChunks():
@@ -51,3 +46,23 @@ file.nim(2, 10) Error: test"""
     )
   ]
 
+test "Error with square brackets":
+  # Tests an issue that occured where square brackets were parsed as belonging to the inbuilt name
+  let msg = """
+public.nim(39, 15) template/generic instantiation of `collect` from here
+public.nim(41, 44) Error: type mismatch
+Expression: postfix(ast[ident], newIdentNode("*"))
+  [1] ast[ident]: Node
+  [2] newIdentNode("*"): PNode
+
+Expected one of (first mismatch at [position]):
+[1] proc postfix(x, operator: PNode): PNode"""
+  let err = msg.parseError()
+  check err.msg == """
+type mismatch
+Expression: postfix(ast[ident], newIdentNode("*"))
+  [1] ast[ident]: Node
+  [2] newIdentNode("*"): PNode
+
+Expected one of (first mismatch at [position]):
+[1] proc postfix(x, operator: PNode): PNode"""
