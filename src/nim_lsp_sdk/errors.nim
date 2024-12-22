@@ -1,8 +1,8 @@
-import std/[pegs, sequtils, strutils, sugar, strformat]
+import std/[pegs, sequtils, strutils, sugar, strformat, options]
 
 import types, customast
 
-import utils/ast
+import utils/[ast, stringMatch]
 
 import std/[macros, strscans]
 
@@ -37,22 +37,30 @@ type
   ParsedError* = object
     ## Nim error that is parsed into a structured format
     msg*: string
-      ## The name given in the first line
+      ## Full raw message from Nim
     severity*: DiagnosticSeverity
     location*: NimLocation
     relatedInfo*: seq[RelatedInfo]
       ## Other positions that are relevant to this error
     case kind*: ErrorKind
-    of Any, RemovableModule:
-      fullText*: string
-    # of TypeMisMatch:
-      # args: seq[string]
-        ## The args that its getting called with
+    of Any, RemovableModule: discard
     of Unknown, AmbigiousIdentifier:
       possibleSymbols*: seq[string]
 
 const unitSep* = '\31'
   ## Separator Nim compiler uses to split error messages
+
+func `$`*(e: ParsedError): string =
+  result &= e.msg & "\n"
+  case e.kind
+  of Unknown, AmbigiousIdentifier:
+    if e.possibleSymbols.len > 0:
+      result &= "Did you mean?\n"
+      for possible in e.possibleSymbols:
+        result &= &"- {possible}\n"
+      result.setLen(result.len - 1)
+  else: discard
+  result.strip()
 
 let grammar = peg"""
 msgLine <- {path} position ' ' ((&errorLevel {errorLevel} ': ' {@}($ / internalName)) / {instantiation} \n)
@@ -68,7 +76,7 @@ position <- '(' {\d+} ', ' {\d+} ')'
 path <- (!position .)*
 """
 
-iterator msgChunks(msg: string): string =
+iterator msgChunks*(msg: string): string =
   ## Returns each msg chunk from Nim output.
   for msg in msg.split(unitSep):
     if not msg.isEmptyOrWhitespace():
@@ -80,48 +88,24 @@ proc splitMsgLines(msg: string): seq[string] =
     for part in msg.findAll(grammar):
       result &= part
 
-type Match = object
-proc match(x: string): Match = Match()
+proc findNode*(ast: Tree, loc: NimLocation): Option[NodeIdx] =
+  ## Finds the node that points to a location
+  return ast[].findNode(loc.line, loc.col - 1)
 
-macro matches(inp, pat: string, variables: untyped): bool =
-  ## Support for strscans in match statement
-  # Add call
-  let call = newCall(bindSym"scanTuple", inp, pat)
+proc toRange*(ast: Tree, loc: NimLocation): Option[Range] =
+  ## Converts a `NimLocation` into an LSP `Range`.
+  let node = ast.findNode(loc)
+  if node.isSome():
+    return some ast.getPtr(node.unsafeGet()).initRange()
 
-  # Now create the tuple that the call gets unpacked into
-  let
-    okSym = nskLet.genSym("ok")
-    vars = nnkVarTuple.newTree(okSym)
-  for variable in variables:
-    vars &= variable
-  vars &= newEmptyNode()
-  vars &= call
-
-  result = newStmtList(nnkLetSection.newTree(vars), okSym)
-  echo result.toStrLit()
-
-macro `case`(match: Match): untyped =
-  ## Macro for nicely matching a string against a series of patterns.
-  # Input is the string to match against
-  let inp = match[0][1]
-
-  # Go through each branch.
-  # Generate a call to `matches` which checks if the input
-  # matches the pattern and returns a bool along with variables in
-  # scope if it does
-  result = newStmtList()
-  for branch in match[1 .. ^1]:
-    echo branch.treeRepr
-    let
-      body = branch[1]
-      vars = branch[0][2]
-      pat = branch[0][1]
-    let check = nnkCall.newTree(bindSym"matches", inp, pat, vars)
-    result &= newBlockStmt(
-      newEmptyNode(),
-      newIfStmt((check, body))
+proc toLocation*(ast: Tree, loc: NimLocation): Option[Location] =
+  ## Converts a [NimLocation] into an LSP [Location]
+  let range = ast.toRange(loc)
+  if range.isSome:
+    return some Location(
+        uri: initDocumentURI(loc.file),
+        range: range.unsafeGet()
     )
-  echo result.toStrLit
 
 func toDiagnosticSeverity(x: sink string): DiagnosticSeverity =
   ## Returns the diagnostic severity for a string e.g. Hint, Warning
@@ -161,8 +145,7 @@ proc parseError*(msg: string): ParsedError =
     ),
     msg: msg,
     severity: lvl,
-    kind: Any,
-    fullText: error
+    kind: Any
   )
 
   # Add the instanitations as related information
@@ -187,6 +170,7 @@ proc parseError*(msg: string): ParsedError =
         let (ok, _, _, ident) = line.scanTuple("($i, $i): '$+'$.")
         if ok:
           ident
+
     # Make the error more concise
     result.msg = fmt"Undeclared identifier: '{ident}'"
 

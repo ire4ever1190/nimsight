@@ -24,17 +24,6 @@ func makeOptions(file: DocumentURI): seq[string] =
   if file.path.splitFile.ext in [".nimble", ".nims"]:
     result &= ["--include:system/nimscript"]
 
-func `$`(e: ParsedError): string =
-  result &= e.name & "\n"
-  case e.kind
-  of Any, RemovableModule:
-    result &= e.fullText.strip()
-  of Unknown, AmbigiousIdentifier:
-    result &= "Did you mean?\n"
-    for possible in e.possibleSymbols:
-      result &= &"- {possible}\n"
-    result.setLen(result.len - 1)
-
 proc exploreAST*(x: NodePtr, filter: proc (x: NodePtr): bool,
                    handler: proc (x: NodePtr): bool) {.effectsOf: [filter, handler].}=
   ## Helper function to explore the AST
@@ -198,19 +187,13 @@ proc findUsages*(handle: RequestHandle, file: DocumentURI, pos: Position): Optio
       s.usages &= (file, initPos(line, col))
   return some s
 
-func toDiagnosticSeverity(x: sink string): Option[DiagnosticSeverity] =
-  ## Returns the diagnostic severity for a string e.g. Hint, Warning
-  case x
-  of "Hint": some DiagnosticSeverity.Hint
-  of "Warning": some DiagnosticSeverity.Warning
-  of "Error": some DiagnosticSeverity.Error
-  else: none(DiagnosticSeverity)
-
 proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
+  # See if we can get errors from the cache
   let file = handle.getRawFile(x)
   if file.errors.len > 0: return file.errors
 
+  # If not, then run the compiler to get the messages
   let (outp, exitCode) = handle.execProcess(
     "nim",
     @["check"] & ourOptions & makeOptions(x) & "-",
@@ -218,57 +201,32 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
     workingDir = $x.path.parentDir()
   )
 
-  let (fIdx, root, _) = handle.parseFile(x)
-  for error in outp.split('\31'):
-    let lines = error.splitLines()
-    for i in 0..<lines.len:
-      var (ok, file, line, col, lvl, msg) = lines[i].scanTuple("$+($i, $i) $+: $+")
-      let sev = lvl.toDiagnosticSeverity()
-      # stdin means its this file, so update it
-      if file == "stdinfile.nim":
-        file = $x.path
-      if file != $x.path: continue
-      if ok:
-        let node = root.findNode(uint line, uint col - 1, fIdx)
-        # Couldn't match it to a node, so don't trust sending the error out.
-        # Need to have some system, since macros could give an error anywhere and
-        # we do want to show it
-        if node.isNone(): continue
-        var err: ParsedError
-        # See if we can parse some more data from the error message
-        if msg.startsWith("undeclared identifier"):
-          let possible = collect:
-            for j in i + 1 ..< lines.len:
-              let (ok, _, _, name) = lines[j].scanTuple(" ($i, $i): '$+'")
-              if ok:
-                name
-          err = ParsedError(kind: Unknown, possibleSymbols: possible)
-        elif msg.startsWith("ambiguous identifier"):
-          let possible = collect:
-            for j in i + 1 ..< lines.len:
-              let (ok, module, sym) = lines[j].scanTuple("$s$+: $+")
-              if ok:
-                fmt"{module}: `{sym}`"
-          err = ParsedError(kind: AmbigiousIdentifier, possibleSymbols: possible)
-        else:
-          var fullText: string
-          for j in i + 1 ..< lines.len:
-            fullText &= lines[j] & '\n'
-          if fullText.len > 0:
-            fullText.setLen(fullText.len - 1)
-          err = ParsedError(kind: Any, fullText: fullText)
-        # And add the diagnotic
-        err.name = msg
-        err.node = node.unsafeGet()
-        err.severity = sev.unsafeGet()
-        err.file = file
-        result &= err
+  # Store the errors in the cache
   file.errors = result
 
 proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
+  ## Returns all the diagnostics for a document.
+  ## Mainly just converts the stored errors into Diagnostics
+  let root = handle.parseFile(x).ast
   for err in handle.getErrors(x):
-     result &= Diagnostic(
-        range: err.range,
-        severity: some err.severity,
-        message: $err,
-      )
+    # Convert from basic line info into extended line info (i.e. is full range from AST)
+    let range = root.toRange(err.location)
+    if range.isNone: continue
+
+    # Convert relevant information
+    let info = collect:
+      for related in err.relatedInfo:
+        DiagnosticRelatedInformation(
+          location: root.toLocation(related.location).unsafeGet(),
+          message: related.msg
+        )
+
+
+    # Now just carry across the info
+    result &= Diagnostic(
+      range: range.unsafeGet(),
+      severity: some err.severity,
+      message: $err,
+      relatedInformation: if info.len > 0: some info
+                          else: none(seq[DiagnosticRelatedInformation])
+    )

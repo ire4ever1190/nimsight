@@ -32,7 +32,7 @@ type
     tree: Tree
     idx: NodeIdx
 
-  Tree = ref seq[Node]
+  Tree* = ref seq[Node]
   TreeView* = openArray[Node]
 
   ParsedFile* = tuple[idx: FileIndex, ast: Tree, errs: seq[ParserError]]
@@ -243,9 +243,8 @@ func initRange*(p: NodePtr): Range =
     else:
       result.`end` = result.start
 
-proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[NodeIdx] =
+proc findNode*(t: TreeView, line, col: uint): Option[NodeIdx] =
   ## Returns the index for a node that matches line col.
-  # TODO: Do we need file index? Not like we can parse across files atm
   for idx, node in t:
     # TODO: Implement early escaping?
     # Issue is that for example `a and b` in a statement list wouldn't have
@@ -254,7 +253,7 @@ proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[NodeI
       info = node.info
       # Empty nodes don't have proper line info set, so ignore them
       isEmpty = node.kind == nkEmpty
-    if unlikely(not isEmpty and info.line == line and info.col.uint == col and info.fileIndex == careAbout):
+    if unlikely(not isEmpty and info.line == line and info.col.uint == col):
       result = some idx.NodeIdx
 
 proc findNode*(t: TreeView, pos: Position): Option[NodeIdx] =
@@ -276,10 +275,10 @@ proc findNode*(t: TreeView, r: Range): Option[NodeIdx] =
   findNode(t, r.start)
 
 
-proc findNode*(t: Tree, line, col: uint, careAbout: FileIndex): Option[NodePtr] =
+proc findNode*(t: Tree, line, col: uint): Option[NodePtr] =
   # For some reason its faster to deference here than to derefence in the other (By a large margin).
   # Maybe if I deference directly then it dereferences every loop?
-  let idx = t[].findNode(line, col, careAbout)
+  let idx = t[].findNode(line, col)
   if idx.isSome():
     return some t.getPtr(idx.unsafeGet())
 

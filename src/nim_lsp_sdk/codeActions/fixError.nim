@@ -5,11 +5,10 @@
 import ../[errors, types, params, server, customast, nim_check]
 import ../utils/ast
 import ./utils
-import std/[strformat, options, tables]
+import std/[strformat, options, tables, sugar]
 
-import std/parseutils
 
-proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
+proc createFix*(e: ParsedError, node: NodePtr, diagnotic: Diagnostic): seq[CodeAction] =
   ## Returns possibly fixes for an error
   case e.kind
   of Unknown:
@@ -20,7 +19,7 @@ proc createFix*(e: ParsedError, diagnotic: Diagnostic): seq[CodeAction] =
         diagnostics: some @[diagnotic],
         edit: some WorkspaceEdit(
             changes: some toTable({
-              DocumentURI("file://" & e.file): @[e.node.editWith(newIdentNode(option))]
+              DocumentURI("file://" & e.location.file): @[node.editWith(newIdentNode(option))]
             })
           )
       )
@@ -36,9 +35,19 @@ proc fixError(
   # Go through every error and create a fix.
   # Slighly wrong with how it works, need a way to line up diagnostics
   # with the errors
-  for diag in params.context.diagnostics:
+  let tree = handle.parseFile(params.textDocument.uri).ast
+
+  # Lookup the nodes for each error
+  let mappedErrors = collect:
     for error in handle.getErrors(params.textDocument.uri):
-      if error.range == diag.range:
-        result &= error.createFix(diag)
+      let node = tree.findNode(error.location)
+      if node.isSome():
+        (error, tree.getPtr(node.unsafeGet()))
+
+  for diag in params.context.diagnostics:
+    for (error, node) in mappedErrors:
+      # TODO: Not make this this bad
+      if node.initRange == diag.range:
+        result &= error.createFix(node, diag)
 
 registerProvider(fixError)
