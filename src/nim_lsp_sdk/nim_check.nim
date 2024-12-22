@@ -218,8 +218,11 @@ proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.g
     # Convert relevant information
     let info = collect:
       for related in err.relatedInfo:
+        let location = root.toLocation(related.location)
+        if location.isNone: continue
+
         DiagnosticRelatedInformation(
-          location: root.toLocation(related.location).unsafeGet(),
+          location: location.unsafeGet(),
           message: related.msg
         )
 

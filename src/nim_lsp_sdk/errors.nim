@@ -4,7 +4,7 @@ import types, customast
 
 import utils/[ast, stringMatch]
 
-import std/[macros, strscans]
+import std/[macros, strscans, strutils, logging]
 
 import "$nim"/compiler/ast
 
@@ -117,25 +117,17 @@ func toDiagnosticSeverity(x: sink string): DiagnosticSeverity =
     # Spec mentions to interpret as Error if missing
     DiagnosticSeverity.Error
 
-proc parseError*(msg: string, stdinFile: string = ""): ParsedError =
-  ## Given a full error message, it returns a parsed error.
-  ## "full errror message" meaning it handles a full block separated by UnitSep (See --unitsep in Nim).
-  ##
-  ## - `stdinFile`: File to replace the stdin file with for better error messages
-  template fixFile(x: string): string =
-    if x == "stdinfile.nim": stdinFile else: x
+template fixFile(x: string): string =
+  if x == "stdinfile.nim": stdinFile else: x
 
-  # Parse out information from the error message.
-  # All 'generic/template instantiation' messages come before the actual message
-  let
-    lines = splitMsgLines(msg)
-    error = lines[^1]
-    instantiations = lines[0 ..< ^1]
-
-  # Now parse actual info from the messages
+proc readError*(msg: string, stdinFile=""): ParsedError {.gcsafe.} =
+  ## Parses an error line into a basic structure.
+  ## Doesn't fully parse the message
   var matches = default(array[5, string])
-  {.cast(gcsafe).}:
-    doAssert error.match(grammar, matches)
+  {.gcsafe.}:
+    assert msg.match(grammar, matches), "Grammar doesn't match: " & msg
+
+  # Parse values from the matches
   let
     file = matches[0].fixFile()
     line = matches[1].parseUInt()
@@ -143,6 +135,7 @@ proc parseError*(msg: string, stdinFile: string = ""): ParsedError =
     lvl = matches[3].toDiagnosticSeverity()
     msg = matches[4]
 
+  # Construct a basic ParsedError
   result = ParsedError(
     location: NimLocation(
       file: file.fixFile(),
@@ -153,6 +146,21 @@ proc parseError*(msg: string, stdinFile: string = ""): ParsedError =
     severity: lvl,
     kind: Any
   )
+
+proc parseError*(msg: string, stdinFile = ""): ParsedError =
+  ## Given a full error message, it returns a parsed error.
+  ## "full errror message" meaning it handles a full block separated by UnitSep (See --unitsep in Nim).
+  ##
+  ## - `stdinFile`: File to replace the stdin file with for better error messages
+
+  # Parse out information from the error message.
+  # All 'generic/template instantiation' messages come before the actual message
+  let
+    lines = splitMsgLines(msg)
+    error = lines[^1]
+    instantiations = lines[0 ..< ^1]
+
+  result = readError(error, stdinFile)
 
   # Add the instanitations as related information
   for inst in instantiations:
@@ -169,7 +177,7 @@ proc parseError*(msg: string, stdinFile: string = ""): ParsedError =
     )
 
   # Try and match the message against some patterns
-  case match(msg):
+  case match(result.msg):
   of "undeclared identifier: '$w'$scandidates (edit distance, scope distance); see '--spellSuggest':$s$*" as (ident, rest):
     # Parse out the different options
     let options = collect:
@@ -185,3 +193,14 @@ proc parseError*(msg: string, stdinFile: string = ""): ParsedError =
     {.cast(uncheckedAssign).}:
       result.kind = Unknown
       result.possibleSymbols = options
+  of "'$w' can have side effects$s$*" as (ident, calls):
+    # Add the calls as related information
+    result.msg = fmt"'{ident}' can have side effects"
+    for line in calls.splitLines():
+      if line.isEmptyOrWhitespace(): continue
+      let err = line.strip(chars = {'>'} + Whitespace).readError(stdinFile)
+      result.relatedInfo &= RelatedInfo(
+        msg: err.msg,
+        location: err.location
+      )
+
