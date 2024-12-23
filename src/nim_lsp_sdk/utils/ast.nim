@@ -37,6 +37,7 @@ proc findNode*(p: PNode, line, col: uint, careAbout: FileIndex): Option[PNode] =
     if res.isSome():
       return res
 
+
 func lineCol*(x: TLineInfo): string =
   fmt"{x.line}:{x.col}"
 

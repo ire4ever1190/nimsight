@@ -208,6 +208,10 @@ proc toPNode*(tree: TreeView): PNode =
   ## Converts a custom AST into a `PNode`
   tree.toPNode(tree.low.NodeIdx)
 
+proc toPNode*(n: NodePtr): PNode =
+  ## Converts a [NodePtr] into a `PNode`
+  n.tree[].toPNode(n.idx)
+
 proc parseFile*(x: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
   ## Parses a document. Doesn't perform any semantic analysis
   var conf = newConfigRef()
@@ -297,6 +301,7 @@ proc findNode*(t: Tree, line, col: uint): Option[NodePtr] =
   if idx.isSome():
     return some t.getPtr(idx.unsafeGet())
 
+# Why is this here?
 proc editWith*(original: NodePtr, update: PNode): TextEdit =
   ## Creates an edit that will replace `original` with `update`.
   {.gcsafe.}:

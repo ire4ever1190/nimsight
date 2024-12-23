@@ -49,6 +49,7 @@ proc makeFieldsPublic*(
   return @[CodeAction(
     title: fmt"Make '{n.name}' fields public",
     diagnostics: none seq[Diagnostic],
+    kind: some Refactor
     edit: some WorkspaceEdit(
       changes: some toTable({
         params.textDocument.uri: edits

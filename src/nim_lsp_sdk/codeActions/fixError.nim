@@ -17,12 +17,16 @@ proc createFix*(e: ParsedError, node: NodePtr, diagnotics: seq[Diagnostic]): seq
       result &= CodeAction(
         title: fmt"Rename to `{option}`",
         diagnostics: some newSeq[Diagnostic](),
+        kind: some QuickFix,
         edit: some WorkspaceEdit(
             changes: some toTable({
               DocumentURI("file://" & e.location.file): @[node.editWith(newIdentNode(option))]
             })
           )
       )
+  of RemovableModule:
+    let importStmt = node.parent({nkInfix, nkInfix, nkBracket})
+
   else: discard
 
 
