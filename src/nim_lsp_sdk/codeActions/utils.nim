@@ -83,15 +83,17 @@ proc minimiseChanges(file, newContent: string, line, col: int): string =
     oLexer = newTokeniser(file)
     uLexer = newTokeniser(newContent)
 
+  # Get to `newContent` inside `file`
   while not oLexer.atPos(line, col) and oLexer.next().tokType != tkEof:
     discard
 
+  # While the same, skip
   while oLexer.next().sameToken(uLexer.next()):
     result &= oLexer.spacing & $oLexer.peek()
 
 const a = """import std/
   [strutils]"""
 const b = """import
-  std/[strutils]"""
+  std/[l]"""
 
 echo minimiseChanges(a, b, 0, 0)
