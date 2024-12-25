@@ -52,13 +52,18 @@ proc newTokeniser(content: sink string): Tokeniser =
   result.lexer.openLexer(AbsoluteFile"content.nim", stream, newIdentCache(), newConfigRef())
 
 proc peek(a: Tokeniser): Token = a.curr
+func isEOF(a: Tokeniser): bool = a.curr.tokType == tkEof
+
 proc next(a: var Tokeniser): Token =
   let
     old = a.curr
-    oldCol = old.col + len($old)
+    oldCol = old.col + (if old.tokType == tkEof: 0 else: len($old))
   a.lexer.rawGetTok(a.curr)
+
+  # Discover the spacing between the old and new token
   if old.line == a.curr.line:
-    echo a.curr.col, " ", old.col
+    echo a.curr, " ", old
+    echo a.curr.col, " ", oldCol
     a.spacing = " ".repeat(a.curr.col - oldCol)
   else:
     a.spacing = "\n".repeat(a.curr.line - old.line ) & " ".repeat(a.curr.col)
@@ -68,17 +73,15 @@ proc next(a: var Tokeniser): Token =
 proc atPos(a: Tokeniser, line, col: int): bool =
   a.curr.line == line and a.curr.col == col
 
-proc getTok(l: var Lexer): Token =
-  l.rawGetTok(result)
-
 func sameToken(a, b: Token): bool =
-  ## Checks that both tokens are the same
+  ## Checks that both tokens are the same when ignoring line info
   return a.tokType == b.tokType and $a == $b and a.tokType != tkEof
 
 
-proc minimiseChanges(file, newContent: string, line, col: int): string =
+proc minimiseChanges*(file, newContent: string, line, col: int): string =
   ## Minimises changes by trying to place `newContent` inside `file`.
-  ## Poor mans CST
+  ## Poor mans CST.
+  ## Currently only supports VERY BASIC deletions
   var
     oLexer = newTokeniser(file)
     uLexer = newTokeniser(newContent)
@@ -91,9 +94,10 @@ proc minimiseChanges(file, newContent: string, line, col: int): string =
   while oLexer.next().sameToken(uLexer.next()):
     result &= oLexer.spacing & $oLexer.peek()
 
-const a = """import std/
-  [strutils]"""
-const b = """import
-  std/[l]"""
+  # when we get back on track, continue printing
+  while not oLexer.next().sameToken(uLexer.peek()) and oLexer.peek().tokType != tkEof:
+    discard
 
-echo minimiseChanges(a, b, 0, 0)
+  while uLexer.next().tokType != tkEof:
+    result &= uLexer.spacing & $uLexer.peek()
+

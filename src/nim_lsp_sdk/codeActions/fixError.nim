@@ -25,7 +25,8 @@ proc createFix*(e: ParsedError, node: NodePtr, diagnotics: seq[Diagnostic]): seq
           )
       )
   of RemovableModule:
-    let importStmt = node.parent({nkInfix, nkInfix, nkBracket})
+    # Find the nearest parent that allows us to remove the import.
+    # Important thing is that inside brackets we removet
 
   else: discard
 

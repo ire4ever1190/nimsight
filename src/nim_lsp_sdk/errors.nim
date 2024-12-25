@@ -155,8 +155,11 @@ proc parseError*(msg: string, stdinFile = ""): ParsedError =
 
   # Parse out information from the error message.
   # All 'generic/template instantiation' messages come before the actual message
+  let lines = splitMsgLines(msg)
+  if lines.len == 0:
+    debug "Failed to parse logs from: ", msg
+
   let
-    lines = splitMsgLines(msg)
     error = lines[^1]
     instantiations = lines[0 ..< ^1]
 

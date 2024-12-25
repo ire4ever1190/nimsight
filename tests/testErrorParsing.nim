@@ -66,3 +66,52 @@ Expression: postfix(ast[ident], newIdentNode("*"))
 
 Expected one of (first mismatch at [position]):
 [1] proc postfix(x, operator: PNode): PNode"""
+
+test "Random errors I got once":
+  let msgs = """
+/files/test.nim(5, 9) Error: expression expected, but found '{.'
+=============
+/files/test.nim(5, 41) Error: invalid indentation
+=============
+/files/test.nim(5, 41) Error: expression expected, but found '.}'
+=============
+/files/test.nim(5, 11) Error: undeclared identifier: 'hint'
+candidates (edit distance, scope distance); see '--spellSuggest':
+ (1, 2): 'cint'
+ (1, 2): 'int'
+ (1, 2): 'uint'
+=============
+/files/test.nim(5, 11) Error: expression 'hint' has no type (or is ambiguous)
+=============
+/files/test.nim(5, 16) Error: undeclared identifier: 'XDeclaredButNotUsed'
+candidates (edit distance, scope distance); see '--spellSuggest':
+ (9, 3): 'declaredInScope'
+=============
+/files/test.nim(5, 15) Error: expression '' has no type (or is ambiguous)
+Error: in expression ' do:
+  off': identifier expected, but found ''
+=============
+/files/test.nim(5, 11) Error: attempting to call undeclared routine: '<Error>'
+Error: in expression ' do:
+  off': identifier expected, but found ''
+=============
+/files/test.nim(5, 11) Error: attempting to call undeclared routine: '<Error>'
+=============
+/files/test.nim(5, 11) Error: expression '' cannot be called
+=============
+/files/test.nim(5, 11) Error: expression '' has no type (or is ambiguous)
+=============
+/files/test.nim(5, 5) Error: 'let' symbol requires an initialization
+=============
+/files/test.nim(3, 5) Hint: 'inputs' is declared but not used [XDeclaredButNotUsed]
+=============
+/files/test.nim(5, 5) Hint: 'x' is declared but not used [XDeclaredButNotUsed]
+=============
+/files/test.nim(1, 13) Warning: imported and not used: 'sugar' [UnusedImport]
+=============
+/files/test.nim(1, 20) Warning: imported and not used: 'tables' [UnusedImport]
+""".split("=============\n")
+  for msg in msgs:
+    echo msg
+    discard msg.parseError()
+    echo "Finished"
