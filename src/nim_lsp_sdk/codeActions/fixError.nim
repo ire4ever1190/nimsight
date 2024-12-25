@@ -24,10 +24,6 @@ proc createFix*(e: ParsedError, node: NodePtr, diagnotics: seq[Diagnostic]): seq
             })
           )
       )
-  of RemovableModule:
-    # Find the nearest parent that allows us to remove the import.
-    # Important thing is that inside brackets we removet
-
   else: discard
 
 
