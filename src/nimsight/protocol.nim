@@ -1,7 +1,8 @@
 ## Handles communication between the client/server
-import std/[json, jsonutils, options, strscans, logging, strutils, strformat, locks, sugar]
-import types, utils, hooks, methods, params
+import std/[json, jsonutils, options, strscans, strutils, strformat, locks]
+import types, utils, hooks, methods
 
+import params
 import pkg/anano
 
 proc readPayload*(): JsonNode =

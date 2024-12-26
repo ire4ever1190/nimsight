@@ -1,12 +1,8 @@
 
-import std/[strscans, strutils, syncio, json, jsonutils, options, strformat, tables, sequtils, paths, files]
-import std/macros
-import "$nim"/compiler/ast
+import std/[strutils, json, jsonutils, options, strformat, tables, paths, files]
 import nimsight/[nim_check, server, protocol, customast]
 
-import nimsight/[types, params, methods, utils, logging, errors]
-
-from nimsight/utils/ast import newIdentNode
+import nimsight/[types, params, methods, utils, logging]
 
 import nimsight/codeActions
 

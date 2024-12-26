@@ -1,5 +1,5 @@
 ## Utils for working with the Nim AST
-import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos, llstream, renderer]
+import "$nim"/compiler/[ast, idents, lineinfos, renderer]
 import ../types
 
 import std/[strformat, options]

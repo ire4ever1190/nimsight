@@ -4,7 +4,7 @@ import types, customast
 
 import utils/[stringMatch]
 
-import std/[macros, strscans, logging]
+import std/[macros, strscans]
 
 import "$nim"/compiler/ast
 

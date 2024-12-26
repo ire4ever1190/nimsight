@@ -1,7 +1,7 @@
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths]
 
 import utils, types, protocol, hooks, params, ./logging, ./files, ./customast, methods
-import utils/[ast, locks]
+import utils/locks
 
 import threading/[channels, rwlock]
 

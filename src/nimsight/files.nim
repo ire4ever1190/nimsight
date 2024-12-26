@@ -6,7 +6,7 @@ import pkg/minilru
 
 import ./[errors, types, customast]
 
-import std/[strformat, options, logging]
+import std/[strformat, options]
 
 const NoVersion* = -1
 

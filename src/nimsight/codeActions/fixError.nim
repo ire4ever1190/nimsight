@@ -5,7 +5,7 @@
 import ../[errors, types, params, server, customast, nim_check]
 import ../utils/ast
 import ./utils
-import std/[strformat, options, tables, sugar, logging]
+import std/[strformat, options, tables, sugar]
 
 
 proc createFix*(e: ParsedError, node: NodePtr, diagnotics: seq[Diagnostic]): seq[CodeAction] =

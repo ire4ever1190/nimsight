@@ -1,5 +1,7 @@
 import std/[options, json, paths]
 
+{.used.} # Sometimes this is just imported to make sure everything is registered
+
 import types, utils, methods
 
 type
