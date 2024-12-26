@@ -2,7 +2,7 @@
 
 import std/[unittest, osproc, os, strformat, strutils, sequtils]
 
-import nim_lsp_sdk/[errors {.all.}, customast]
+import nimsight/[errors {.all.}, customast]
 
 let
   auxFile = currentSourcePath().parentDir() / "errorParsingAuxFile.nim"

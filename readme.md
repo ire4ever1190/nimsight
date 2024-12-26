@@ -31,7 +31,7 @@ Add this into the list of LSP servers
 ```json
 {
   "nim": {
-    "command": ["nim_lsp_sdk"],
+    "command": ["nimsight"],
     "path": ["%{ENV:HOME}/.nimble/bin", "%{ENV:USERPROFILE}/.nimble/bin"],
     "rootIndicationFilePatterns": ["*.nimble", "config.nims"],
     "url": "https://github.com/ire4ever1190/nimsight",

@@ -65,7 +65,7 @@ end
 vim.lsp.set_log_level("TRACE")
 local config = {
   name = "Nim LSP Test",
-  cmd = {test_folder .. "/../" .. "nim_lsp_sdk"}
+  cmd = {test_folder .. "/../" .. "nimsight"}
 }
 
 config.on_init = function (client, results)

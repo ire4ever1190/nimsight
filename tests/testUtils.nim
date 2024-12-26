@@ -1,5 +1,5 @@
-import nim_lsp_sdk/utils
-import nim_lsp_sdk/codeActions/utils
+import nimsight/utils
+import nimsight/codeActions/utils
 
 import std/[unittest, json, jsonutils]
 

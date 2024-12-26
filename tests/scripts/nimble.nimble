@@ -7,7 +7,7 @@ author        = "Jake Leahy"
 description   = "SDK for creating LSP servers"
 license       = "MIT"
 srcDir        = "src"
-bin = @["nim_lsp_sdk"]
+bin = @["nimsight"]
 
 
 # Dependencies

@@ -2,13 +2,13 @@
 import std/[strscans, strutils, syncio, json, jsonutils, options, strformat, tables, sequtils, paths, files]
 import std/macros
 import "$nim"/compiler/ast
-import nim_lsp_sdk/[nim_check, server, protocol, customast]
+import nimsight/[nim_check, server, protocol, customast]
 
-import nim_lsp_sdk/[types, params, methods, utils, logging, errors]
+import nimsight/[types, params, methods, utils, logging, errors]
 
-from nim_lsp_sdk/utils/ast import newIdentNode
+from nimsight/utils/ast import newIdentNode
 
-import nim_lsp_sdk/codeActions
+import nimsight/codeActions
 
 import std/locks
 import std/os
@@ -29,7 +29,7 @@ proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
   ))
 
 
-import nim_lsp_sdk/utils
+import nimsight/utils
 
 addHandler(newLSPLogger())
 
