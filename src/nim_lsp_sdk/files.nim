@@ -8,8 +8,6 @@ import ./[errors, types, customast]
 
 import std/[strformat, options, logging]
 
-import "$nim"/compiler/ast
-
 const NoVersion* = -1
 
 type
