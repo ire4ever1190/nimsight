@@ -1,7 +1,5 @@
 import std/[macrocache, macros, strformat, paths]
 
-import threading/[rwlock]
-
 import ./utils/union
 
 const rpcMethods = CacheTable"lsp.rpcMethods"

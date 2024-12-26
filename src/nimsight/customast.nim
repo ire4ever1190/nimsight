@@ -5,7 +5,7 @@
 
 import "$nim"/compiler/[ast, parser, syntaxes, options, msgs, idents, pathutils, lineinfos, llstream, renderer]
 
-import std/[sequtils, options, strformat, logging]
+import std/[sequtils, options, strformat]
 
 import types
 

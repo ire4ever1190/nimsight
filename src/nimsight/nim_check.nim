@@ -1,12 +1,12 @@
 ## Utils for working with Nim check
-import std/[osproc, strformat, logging, strscans, strutils, options, sugar, jsonutils, os, streams, tables, paths]
+import std/[osproc, strformat, strscans, strutils, options, sugar, os, streams, paths]
 import types, hooks, server, params, errors
 
 import utils/ast
 
 import customast
 
-import "$nim"/compiler/[parser, ast, idents, options, msgs, pathutils, syntaxes, lineinfos, llstream]
+import "$nim"/compiler/ast
 
 ## Common options for checking errors in a file
 const ourOptions = @[

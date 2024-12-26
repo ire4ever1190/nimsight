@@ -31,8 +31,8 @@ jobs:
         sudo tar -C /opt -xzf nvim-linux64.tar.gz
         echo "/opt/nvim-linux64/bin" >> $GITHUB_PATH
 
-    - name: Install Nim dependencies
-      run: nimble update && nimble build
+    - name: Build
+      run: nimble update && nimble build -d:ci
 
     - name: Run Tests
       run: nimble test
