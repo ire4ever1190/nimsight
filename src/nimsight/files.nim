@@ -67,12 +67,9 @@ proc parseFile*(x: var Files, path: DocumentURI, version = NoVersion): ParsedFil
     data.ast = path.parseFile(data.content)
   return data.ast
 
-proc put*(x: var Files, path: DocumentURI, data: string, version: int) =
+proc put*(x: var Files, path: DocumentURI, data: sink string, version: int) =
   ## Adds a file into the file cache
   x.put(path, StoredFile(version: version, content: data))
 
-# proc set*(x: var Files, path: string, errors: sink seq[ParsedError]) =
-#   x.rawGet(path)
-
-proc put*(x: var Files, path: DocumentURI, data: string) =
+proc put*(x: var Files, path: DocumentURI, data: sink string) =
   x.put(path, data, NoVersion)
