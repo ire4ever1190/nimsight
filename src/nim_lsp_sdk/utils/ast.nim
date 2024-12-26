@@ -4,7 +4,6 @@ import ../types
 
 import std/[strformat, options]
 
-
 proc nameNode*(x: PNode): PNode =
   ## Returns the node that stores the name
   case x.kind
@@ -37,6 +36,7 @@ proc findNode*(p: PNode, line, col: uint, careAbout: FileIndex): Option[PNode] =
     let res = findNode(child, line, col, careAbout)
     if res.isSome():
       return res
+
 
 func lineCol*(x: TLineInfo): string =
   fmt"{x.line}:{x.col}"

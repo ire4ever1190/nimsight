@@ -1,4 +1,5 @@
 import nim_lsp_sdk/utils
+import nim_lsp_sdk/codeActions/utils
 
 import std/[unittest, json, jsonutils]
 
@@ -112,3 +113,21 @@ suite "ref case":
       else:
         "no foo"
     check res == "test"
+
+import std/strutils
+
+suite "Token Differ":
+  test "Can output the same structure":
+    check minimiseChanges(
+      "import std/strutils",
+      """import     std   /
+        strutils
+      """, 0, 0
+    ).strip() == "import std/strutils"
+  when false:
+    test "Simple removal still works":
+      check minimiseChanges(
+          "import std/[strutils, options]",
+          "import std/strutils",
+          0, 0
+      ).strip() == "import std/[strutils]"

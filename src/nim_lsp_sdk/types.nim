@@ -204,8 +204,8 @@ type
 
   DiagnosticRelatedInformation* = object
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#diagnosticRelatedInformation)
-    location: Location
-    message: string
+    location*: Location
+    message*: string
 
   CodeDescription* = object
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeDescription)
@@ -448,3 +448,4 @@ proc initPos*(line: SomeInteger, col: SomeInteger): Position =
     result.character = uint col - 1
   if line != 0:
     result.line = uint line - 1
+

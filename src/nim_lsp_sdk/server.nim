@@ -317,7 +317,7 @@ proc poll*(server: var Server) =
   while true:
     let request = readRequest()
     if request of RequestMessage:
-      info "Recieved method: ", RequestMessage(request).`method`
+      info "Calling method: ", RequestMessage(request).`method`
 
     # Few get special cased since we want them handled no matter what.
     # Rest get sent into worker queue

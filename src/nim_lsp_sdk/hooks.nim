@@ -1,5 +1,7 @@
 ## JSON hooks for parsing special structures
 
+{.used.}
+
 import std/[json, jsonutils, options, strtabs, tables]
 
 import types

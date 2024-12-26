@@ -21,7 +21,7 @@ proc readPayload*(): JsonNode =
     # Now read the body
     var body = newString(contentLength)
     assert stdin.readChars(body) == contentLength, "Only partial body was sent"
-    # debug("Read: \n" & body)
+
     return body.parseJson()
   except CatchableError as e:
     raise (ref ServerError)(code: InvalidRequest, msg: e.msg)

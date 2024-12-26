@@ -16,7 +16,7 @@ type
     ## Index into the tree
   Node* {.acyclic.} = object
     info*, endInfo*: TLineInfo
-    parent: NodeIdx
+    parent*: NodeIdx
     case kind*: TNodeKind
     of nkCharLit..nkUInt64Lit:
       intVal*: BiggestInt
@@ -32,17 +32,26 @@ type
     tree: Tree
     idx: NodeIdx
 
-  Tree = ref seq[Node]
-  TreeView = openArray[Node]
+  Tree* = ref seq[Node]
+  TreeView* = openArray[Node]
 
-  ParsedFile* = tuple[idx: FileIndex, ast: Tree]
+  ParsedFile* = tuple[idx: FileIndex, ast: Tree, errs: seq[ParserError]]
+
+  ParserError* = object
+    info: TLineInfo
+    msg: TMsgKind
+    arg: string
 
 func `[]`*(p: NodePtr): lent Node {.gcsafe.} =
   ## Derefences a node
   p.tree[p.idx]
 
+func idx*(x: NodePtr): NodeIdx = x.idx
+
 func `$`*(p: Node): string =
   return fmt"{p.kind} @ {p.info.line}:{p.info.col}"
+
+func `$`*(p: NodePtr): string = $p[]
 
 func getPtr*(t: Tree, idx: NodeIdx): NodePtr =
   ## Gets a [NodePtr] for an index
@@ -66,6 +75,7 @@ func `[]`*(p: NodePtr, child: int): NodePtr =
   result = p
   result.idx = p[].sons[child]
 
+
 func root*(a: TreeView): Node =
   ## Returns the first node in a [Tree]
   a[a.low]
@@ -79,6 +89,10 @@ func hasSons*(a: Node | NodePtr): bool {.inline.} =
   ## Returns tree if a node has sons and can be iterated through
   a.kind notin noSons
 
+func len*(n: NodePtr): int =
+  ## Returns number of children a node has
+  return n[].sons.len
+
 iterator sons*(tree: TreeView, idx: NodeIdx): lent Node =
   for son in tree[idx].sons:
     yield tree[son]
@@ -91,6 +105,11 @@ func parent*(n: NodePtr): NodePtr =
   ## Returns the parent node
   n.getPtr(n[].parent)
 
+func parent*(n: NodePtr, skip: set[TNodeKind]): NodePtr =
+  ## Returns the parent node, skipping anything in `skip`
+  result = n.parent
+  while result.kind in skip:
+    result = result.parent
 
 func `==`*(a, b: Node): bool =
   ## Checks if two nodes are equal.
@@ -189,20 +208,28 @@ proc toPNode*(tree: TreeView): PNode =
   ## Converts a custom AST into a `PNode`
   tree.toPNode(tree.low.NodeIdx)
 
-proc ignoreErrors(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) =
-  # TODO: Don't ignore errors
-  discard
+proc toPNode*(n: NodePtr): PNode =
+  ## Converts a [NodePtr] into a `PNode`
+  n.tree[].toPNode(n.idx)
 
 proc parseFile*(x: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
   ## Parses a document. Doesn't perform any semantic analysis
   var conf = newConfigRef()
   let fileIdx = fileInfoIdx(conf, AbsoluteFile x)
+
+  # Collect all the errors. Collecting them now allows us to show them
+  # before nim check happens
+  var errors: seq[ParserError] = @[]
+  proc errHandler(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) =
+    errors &= ParserError(info: info, msg: msg, arg: arg)
+
+  # Run the parser
   var p: Parser
   {.gcsafe.}:
     parser.openParser(p, fileIdx, llStreamOpen(content), newIdentCache(), conf)
     defer: closeParser(p)
-    p.lex.errorHandler = ignoreErrors
-    result = (fileIdx, parseAll(p).toTree())
+    p.lex.errorHandler = errHandler
+    result = (fileIdx, parseAll(p).toTree(), errors)
 
 proc nameNode*(x: NodePtr): NodePtr =
   ## Returns the node that stores the name
@@ -234,9 +261,8 @@ func initRange*(p: NodePtr): Range =
     else:
       result.`end` = result.start
 
-proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[NodeIdx] =
+proc findNode*(t: TreeView, line, col: uint): Option[NodeIdx] =
   ## Returns the index for a node that matches line col.
-  # TODO: Do we need file index? Not like we can parse across files atm
   for idx, node in t:
     # TODO: Implement early escaping?
     # Issue is that for example `a and b` in a statement list wouldn't have
@@ -245,7 +271,7 @@ proc findNode*(t: TreeView, line, col: uint, careAbout: FileIndex): Option[NodeI
       info = node.info
       # Empty nodes don't have proper line info set, so ignore them
       isEmpty = node.kind == nkEmpty
-    if unlikely(not isEmpty and info.line == line and info.col.uint == col and info.fileIndex == careAbout):
+    if unlikely(not isEmpty and info.line == line and info.col.uint == col):
       result = some idx.NodeIdx
 
 proc findNode*(t: TreeView, pos: Position): Option[NodeIdx] =
@@ -257,17 +283,25 @@ proc findNode*(t: TreeView, pos: Position): Option[NodeIdx] =
     let
       startPos = node.info.initPos()
       endPos = node.endInfo.initPos()
-    if startPos <= pos and pos <= endPos:
+      isEmpty = node.kind == nkEmpty
+    if not isEmpty and startPos <= pos and pos <= endPos:
       result = some idx.NodeIdx
 
+proc findNode*(t: TreeView, r: Range): Option[NodeIdx] =
+  # TODO: Solidify the semantics. Do I return any node in the range or just nodes that touch the range?
+  # Looks like ZLS just uses the start of the range so might just do that
+  # https://github.com/zigtools/zls/blob/master/src/features/code_actions.zig#L90
+  findNode(t, r.start)
 
-proc findNode*(t: Tree, line, col: uint, careAbout: FileIndex): Option[NodePtr] =
+
+proc findNode*(t: Tree, line, col: uint): Option[NodePtr] =
   # For some reason its faster to deference here than to derefence in the other (By a large margin).
   # Maybe if I deference directly then it dereferences every loop?
-  let idx = t[].findNode(line, col, careAbout)
+  let idx = t[].findNode(line, col)
   if idx.isSome():
     return some t.getPtr(idx.unsafeGet())
 
+# Why is this here?
 proc editWith*(original: NodePtr, update: PNode): TextEdit =
   ## Creates an edit that will replace `original` with `update`.
   {.gcsafe.}:
