@@ -1,10 +1,10 @@
-import std/[pegs, sequtils, strutils, sugar, strformat, options]
+import std/[pegs, strutils, sugar, strformat, options]
 
 import types, customast
 
-import utils/[ast, stringMatch]
+import utils/[stringMatch]
 
-import std/[macros, strscans, strutils, logging]
+import std/[macros, strscans, logging]
 
 import "$nim"/compiler/ast
 
@@ -156,8 +156,10 @@ proc parseError*(msg: string, stdinFile = ""): ParsedError =
   # Parse out information from the error message.
   # All 'generic/template instantiation' messages come before the actual message
   let lines = splitMsgLines(msg)
+  # Usually happens when the compiler segfaults.
+  # Best to raise an error instead of letting the whole server crash
   if lines.len == 0:
-    debug "Failed to parse logs from: ", msg
+    raise (ref ValueError)(msg: "Failed to parse logs from: " & msg)
 
   let
     error = lines[^1]
