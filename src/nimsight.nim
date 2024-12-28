@@ -4,7 +4,7 @@ import nimsight/[nimCheck, server, protocol, customast]
 
 import nimsight/[types, params, methods, utils, logging]
 
-import nimsight/codeActions
+import nimsight/[codeActions, files, errors]
 
 import std/locks
 import std/os
@@ -16,8 +16,17 @@ type
 
 using s: var Server
 
+
 proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
+  # Send the parser errors right away
+  let ast = handle.parseFile(uri)
+  sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
+    uri: uri,
+    diagnostics: ast.errs.parseErrors($ uri.path, ast.ast).toDiagnostics(ast.ast)
+  ))
+
+  # Then let the other errors get sent
   let diagnostics = handle.getDiagnostics(uri)
   sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
     uri: uri,
@@ -26,12 +35,7 @@ proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
 
 addHandler(newLSPLogger())
 
-# discard RenameFileOptions(
-#   overwrite: some true,
-#   ignoreIfExists: some false
-# )
-
-var lsp = initServer("CTN")
+var lsp = initServer("NimSight")
 
 var
   currentCheckLock: Lock

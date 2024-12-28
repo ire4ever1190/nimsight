@@ -38,10 +38,10 @@ type
   ParsedFile* = tuple[idx: FileIndex, ast: Tree, errs: seq[ParserError]]
 
   ParserError* = object
-    info: TLineInfo
-    msg: TMsgKind
+    info*: TLineInfo
+    msg*: TMsgKind
       ## What kind of message it is
-    arg: string
+    arg*: string
       ## Information about the error
 
 func `[]`*(p: NodePtr): lent Node {.gcsafe.} =
@@ -321,8 +321,11 @@ func toSelectionRange*(tree: Tree, start: NodeIdx): SelectionRange =
   var currNode = tree.getPtr(start)
   result = currNode.initSelectionRange()
 
-  var prev = result
-  while currNode != currNode.parent():
+  var
+    prev = result
+    i = 0 # To stop runaway iteration
+  while currNode != currNode.parent() and i < 100:
     currNode = currNode.parent()
     prev.parent = currNode.initSelectionRange()
     prev = prev.parent
+    i += 1

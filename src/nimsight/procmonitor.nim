@@ -1,8 +1,6 @@
 ## Implements checking if a process is still running.
 ## Used for seeing if the client has closed
 
-import std/os
-
 proc isRunning*(pid: int): bool
   ## Checks if a process is running
 
@@ -26,9 +24,9 @@ else:
     # From https://github.com/nim-lang/langserver/blob/0c287fe98603117df4742bcaf9d3027bb938808d/asyncprocmonitor.nim#L24C1-L26C16
     try:
       sendSignal(Pid(pid), 0)
-      false
-    except:
       true
+    except:
+      false
 
 
 

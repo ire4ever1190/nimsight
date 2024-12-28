@@ -210,9 +210,9 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
   file.ranCheck = true
 
 
-proc getDiagnostics*(
-  handle: RequestHandle,
+proc toDiagnostics*(
   errors: openArray[ParsedError],
+  root: Tree
 ): seq[Diagnostic] {.gcsafe.} =
   ## Converts a list of errors into diagnostics
   for err in errors:
@@ -246,4 +246,4 @@ proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.g
   ## Returns all the diagnostics for a document.
   ## Mainly just converts the stored errors into Diagnostics
   let root = handle.parseFile(x).ast
-  for err in handle.getErrors(x):
+  handle.getErrors(x).toDiagnostics(root)

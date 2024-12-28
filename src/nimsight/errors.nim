@@ -147,6 +147,21 @@ proc readError*(msg: string, stdinFile=""): ParsedError {.gcsafe.} =
     kind: Any
   )
 
+proc parseErrors*(errors: openArray[ParserError], file: string, ast: Tree): seq[ParsedError] =
+  ## Converts errors from the parser into [ParsedError].
+  ## Attempts to map errors to nodes so proper info can be given
+  for error in errors:
+    result &= ParsedError(
+      msg: error.arg,
+      severity: Error,
+      kind: Any,
+      location: NimLocation(
+        file: file,
+        line: error.info.line,
+        col: error.info.col.uint + 1
+      )
+    )
+
 proc parseError*(msg: string, stdinFile = ""): ParsedError =
   ## Given a full error message, it returns a parsed error.
   ## "full errror message" meaning it handles a full block separated by UnitSep (See --unitsep in Nim).
@@ -209,4 +224,3 @@ proc parseError*(msg: string, stdinFile = ""): ParsedError =
         msg: err.msg,
         location: err.location
       )
-

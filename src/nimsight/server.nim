@@ -413,7 +413,6 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
 
     # Add a listener for the parent process
     if params.processId.isSome:
-      debug "PID: ", params.processId.unsafeGet()
       t.createThread(checkProcess, (r.server, params.processId.unsafeGet))
 
 export hooks
