@@ -21,10 +21,11 @@ proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
   # Send the parser errors right away
   let ast = handle.parseFile(uri)
-  sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
-    uri: uri,
-    diagnostics: ast.errs.parseErrors($ uri.path, ast.ast).toDiagnostics(ast.ast)
-  ))
+  if ast.errs.len > 0:
+    sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
+      uri: uri,
+      diagnostics: ast.errs.parseErrors($ uri.path, ast.ast).toDiagnostics(ast.ast)
+    ))
 
   # Then let the other errors get sent
   let diagnostics = handle.getDiagnostics(uri)
