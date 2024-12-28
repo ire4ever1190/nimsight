@@ -209,23 +209,14 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
   file.errors = result
   file.ranCheck = true
 
-#[
+
 proc getDiagnostics*(
   handle: RequestHandle,
-  x: DocumentURI,
   errors: openArray[ParsedError],
-  showAll: bool
 ): seq[Diagnostic] {.gcsafe.} =
   ## Converts a list of errors into diagnostics
-  let range = root.toRange(err.location)
-  # if range.isNone: continue]#
-
-proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
-  ## Returns all the diagnostics for a document.
-  ## Mainly just converts the stored errors into Diagnostics
-  let root = handle.parseFile(x).ast
-  for err in handle.getErrors(x):
-    # Convert from basic line info into extended line info (i.e. is full range from AST)
+  for err in errors:
+    # Convert from basic line info into extended line info (i.e. full range from AST)
     let range = root.toRange(err.location)
     if range.isNone: continue
 
@@ -249,3 +240,10 @@ proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.g
       relatedInformation: if info.len > 0: some info
                           else: none(seq[DiagnosticRelatedInformation])
     )
+
+
+proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
+  ## Returns all the diagnostics for a document.
+  ## Mainly just converts the stored errors into Diagnostics
+  let root = handle.parseFile(x).ast
+  for err in handle.getErrors(x):
