@@ -4,7 +4,7 @@ import nimsight/[nimCheck, server, protocol, customast]
 
 import nimsight/[types, params, methods, utils, logging]
 
-import nimsight/[codeActions, files, errors]
+import nimsight/[codeActions, errors]
 
 import std/locks
 import std/os
