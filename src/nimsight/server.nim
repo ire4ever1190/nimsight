@@ -341,6 +341,7 @@ proc checkProcess(args: Args) {.thread.} =
   while pid.isRunning():
     sleep 10 * 1000
   server[].shutdown()
+  quit(QuitSuccess)
 
 proc poll*(server: var Server) =
   ## Polls constantly for messages and handles responding.

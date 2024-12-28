@@ -2,7 +2,7 @@
 
 {.used.}
 
-import ../[errors, types, params, server, customast, nim_check]
+import ../[errors, types, params, server, customast, nimCheck]
 import ../utils/ast
 import ./utils
 import std/[strformat, options, tables, sugar]

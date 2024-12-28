@@ -1,6 +1,6 @@
 
 import std/[strutils, json, jsonutils, options, strformat, tables, paths, files]
-import nimsight/[nim_check, server, protocol, customast]
+import nimsight/[nimCheck, server, protocol, customast]
 
 import nimsight/[types, params, methods, utils, logging]
 

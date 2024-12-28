@@ -1,6 +1,6 @@
 import std/[unittest, macros, paths, os, dirs, options]
 
-import nimsight/[customast, nim_check]
+import nimsight/[customast, nimCheck]
 import nimsight/utils/ast
 
 import "$nim"/compiler/[ast, parser, syntaxes, options, msgs, idents, pathutils]
