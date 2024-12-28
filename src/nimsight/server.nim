@@ -1,7 +1,9 @@
-import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths]
+import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os]
 
 import utils, types, protocol, hooks, params, ./logging, ./files, ./customast, methods
 import utils/locks
+
+import procmonitor
 
 import threading/[channels, rwlock]
 
@@ -23,6 +25,9 @@ type
     data: pointer
       ## Pointer containing the data
 
+  WorkerThread = Thread[ptr Server]
+    ## Thread that runs a worker for handling requests
+
   Server* = object
     listeners: Table[string, Handler]
     queue: Chan[Message]
@@ -41,6 +46,8 @@ type
       ## Tracks if the server is shutting down or not
     roots*: seq[Path]
       ## Workspace roots
+    workers: seq[WorkerThread]
+      ## All the spawned worker threads
     resultsLock*: RwLock
     results*: ResponseTable
     name*: string
@@ -93,9 +100,7 @@ proc put*[T](table: var ResponseTable, id: string, data: sink T) =
 
 proc get*[T](table: var ResponseTable, id: string, res: out T) =
   let x = addr table
-  table.cond.wait(proc (): bool =
-                  x[].id == id
-                  )
+  table.cond.wait(() => x[].id == id)
   res = move(cast[ptr T](table.data)[])
   table.data = nil
   release table.cond
@@ -253,7 +258,6 @@ proc parseFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): Parsed
   readWith h.server[].filesLock:
     return h.server[].files.parseFile(uri)
 
-
 proc workerThread(server: ptr Server) {.thread.} =
   ## Initialises a worker thread and then handles messages
   ## Implemented via a work stealing message queue
@@ -291,6 +295,12 @@ proc workerThread(server: ptr Server) {.thread.} =
       writeWith server[].inProgressLock:
         server[].inProgress.del(id.unsafeGet())
 
+proc spawnWorkers*(server: var Server, n: int) =
+  ## Spawns `n` workers
+  server.workers = newSeq[WorkerThread](n)
+  for t in server.workers.mitems:
+    t.createThread(workerThread, addr server)
+
 proc queue*(server: var Server, msg: sink Message) =
   ## Queues a request to be handled by the server
   let id = msg.id
@@ -300,9 +310,37 @@ proc queue*(server: var Server, msg: sink Message) =
   # Start running the message
   server.queue.send(unsafeIsolate(ensureMove(msg)))
 
+proc shutdown*(server: var Server) =
+  ## Shutdowns the server.
+  ## - Signals that each worker should stop processing
+  ## - Waits for all worker threads to finish
+  ## Cannot be called on any worker thread (it will deadlock)
+  # First notify all workers that they need to shutdown.
+  server.running.store(false)
+  writeWith server.inProgressLock:
+    for running in server.inProgress.mvalues:
+      running = false
+  # Send a shutdown message. Each worker needs to read a message
+  # so that it checks the running flag again.
+  for _ in 0..server.workers.high:
+    server.queue("shutdown".newMessage(""))
+  # And make sure every thread stops.
+  # Don't join the current thread
+  joinThreads(server.workers)
+
 proc cancel*(server: var Server, id: string) =
   ## Cancels a request in the server
   server.updateRequestRunning(id, false)
+
+type Args = tuple[server: ptr Server, pid: int]
+var t: Thread[Args]
+proc checkProcess(args: Args) {.thread.} =
+  ## Runs a check every 10 seconds that the process passed is still running.
+  ## Shutdowns the server if it closes
+  let (server, pid) = args
+  while pid.isRunning():
+    sleep 10 * 1000
+  server[].shutdown()
 
 proc poll*(server: var Server) =
   ## Polls constantly for messages and handles responding.
@@ -310,9 +348,7 @@ proc poll*(server: var Server) =
   # TODO: Some jobs need some kind of affinity to maintain ordering.
   #       e.g. content change events NEED to be applied in order for incremental sync
   # TODO: Add way to configure number of workers
-  var threads: array[2, Thread[ptr Server]]
-  for t in threads.mitems:
-    t.createThread(workerThread, addr server)
+  server.spawnWorkers(3)
 
   while true:
     let request = readRequest()
@@ -329,17 +365,7 @@ proc poll*(server: var Server) =
       server.cancel($request.params["id"])
     of "shutdown":
       info "Shutting down"
-      # First notify all workers that they need to shutdown.
-      server.running.store(false)
-      writeWith server.inProgressLock:
-        for running in server.inProgress.mvalues:
-          running = false
-      # Send a shutdown message. Each worker needs to read a message
-      # so that it checks the running flag again.
-      for _ in 0..threads.high:
-        server.queue("shutdown".newMessage(""))
-      # And make sure every thread stops
-      joinThreads threads
+      server.shutdown()
       request.respond(newJNull())
     of "exit":
       quit int(server.isRunning)
@@ -383,6 +409,9 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     )
     # add all the roots
     r.server[].roots = params.folders
-    debug r.server[].roots
+
+    # Add a listener for the parent process
+    if params.processId.isSome:
+      t.createThread(checkProcess, (r.server, params.processId.unsafeGet))
 
 export hooks

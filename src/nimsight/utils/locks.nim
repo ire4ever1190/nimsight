@@ -1,7 +1,6 @@
-## Few utilities to make working with locks nicer
+## Few utilities to make working with locks/threads nicer
 import std/locks
-
-## Simple helpers for usnig locks/condition variables
+import std/private/threadtypes
 
 # Some of the comments are verbose since I was a lil confused when writing this
 

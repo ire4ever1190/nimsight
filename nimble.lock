@@ -1,57 +1,14 @@
 {
   "version": 2,
   "packages": {
-    "anano": {
-      "version": "0.2.1",
-      "vcsRevision": "2534c8fc60f463fd7f9573ce235c0c07f632af45",
-      "url": "https://github.com/ire4ever1190/anano",
+    "taskman": {
+      "version": "0.5.5",
+      "vcsRevision": "81ef3911d5343c633afed336bcfa3c7f976edddf",
+      "url": "https://github.com/ire4ever1190/taskman",
       "downloadMethod": "git",
       "dependencies": [],
       "checksums": {
-        "sha1": "bc5242cbfd4feb63779f33d6d433d0a65b7dca75"
-      }
-    },
-    "results": {
-      "version": "0.5.0",
-      "vcsRevision": "57b2392ad69849e3e2d02b74a8a0feee2c3d9570",
-      "url": "https://github.com/arnetheduck/nim-results",
-      "downloadMethod": "git",
-      "dependencies": [],
-      "checksums": {
-        "sha1": "901e2ed088160fdcb8fdf3b315ce62baedc3f7ba"
-      }
-    },
-    "unittest2": {
-      "version": "0.2.3",
-      "vcsRevision": "845b6af28b9f68f02d320e03ad18eccccea7ddb9",
-      "url": "https://github.com/status-im/nim-unittest2",
-      "downloadMethod": "git",
-      "dependencies": [],
-      "checksums": {
-        "sha1": "6936b4e4676c9b37537d93f31cb8fc46f4ebaacb"
-      }
-    },
-    "minilru": {
-      "version": "0.1.0",
-      "vcsRevision": "c35304151ea39077330f225e3837450990d55e48",
-      "url": "https://github.com/status-im/nim-minilru",
-      "downloadMethod": "git",
-      "dependencies": [
-        "results",
-        "unittest2"
-      ],
-      "checksums": {
-        "sha1": "9f200310ac8455e07e6d3a9d1b4088677cb63603"
-      }
-    },
-    "threading": {
-      "version": "0.2.0",
-      "vcsRevision": "c69e13aeb9127cdf8519b07e3f270eada34eee5d",
-      "url": "https://github.com/nim-lang/threading",
-      "downloadMethod": "git",
-      "dependencies": [],
-      "checksums": {
-        "sha1": "1bb1be822a989a8b56bd86c4e1117367426f1b67"
+        "sha1": "a702c0f07c8a4937deb9ded8f541e98c53a51ccf"
       }
     }
   },

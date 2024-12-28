@@ -40,7 +40,9 @@ type
   ParserError* = object
     info: TLineInfo
     msg: TMsgKind
+      ## What kind of message it is
     arg: string
+      ## Information about the error
 
 func `[]`*(p: NodePtr): lent Node {.gcsafe.} =
   ## Derefences a node

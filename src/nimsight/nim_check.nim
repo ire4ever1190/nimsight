@@ -18,10 +18,13 @@ const ourOptions = @[
   "--colors:off"
 ]
 
+func isNimscript(file: DocumentURI): bool =
+  file.path.splitFile.ext in [".nimble", ".nims"]
+
 func makeOptions(file: DocumentURI): seq[string] =
   ## Returns a list of options that should be applied to a file type
   result = @[]
-  if file.path.splitFile.ext in [".nimble", ".nims"]:
+  if file.isNimscript:
     result &= ["--include:system/nimscript"]
 
 proc exploreAST*(x: NodePtr, filter: proc (x: NodePtr): bool,
@@ -190,10 +193,9 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
   ## Parses errors from `nim check` into a more structured form
   # See if we can get errors from the cache
   let file = handle.getRawFile(x)
-  if file.errors.len > 0: return file.errors
-
+  if file.ranCheck: return file.errors
   # If not, then run the compiler to get the messages
-  let (outp, exitCode) = handle.execProcess(
+  let (outp, _) = handle.execProcess(
     "nim",
     @["check"] & ourOptions & makeOptions(x) & "-",
     input=file.content,
@@ -205,6 +207,18 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
 
   # Store the errors in the cache
   file.errors = result
+  file.ranCheck = true
+
+#[
+proc getDiagnostics*(
+  handle: RequestHandle,
+  x: DocumentURI,
+  errors: openArray[ParsedError],
+  showAll: bool
+): seq[Diagnostic] {.gcsafe.} =
+  ## Converts a list of errors into diagnostics
+  let range = root.toRange(err.location)
+  # if range.isNone: continue]#
 
 proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
   ## Returns all the diagnostics for a document.

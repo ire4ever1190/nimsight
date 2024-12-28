@@ -24,9 +24,6 @@ proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
     diagnostics: diagnostics
   ))
 
-
-import nimsight/utils
-
 addHandler(newLSPLogger())
 
 # discard RenameFileOptions(

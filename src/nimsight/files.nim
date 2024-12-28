@@ -20,6 +20,9 @@ type
       ## AST of the content.
     errors*: seq[ParsedError]
       ## Errors for the current content
+    ranCheck*: bool
+      ## Whether `nim check` has been ran on the file. If it hasn't then
+      ## the errors stored are just parser errors
 
   Files* = LruCache[DocumentURI, StoredFile]
     ## Mapping of path to files.
