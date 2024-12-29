@@ -20,6 +20,9 @@ type
       ## AST of the content.
     errors*: seq[ParsedError]
       ## Errors for the current content
+    ranCheck*: bool
+      ## Whether `nim check` has been ran on the file. If it hasn't then
+      ## the errors stored are just parser errors
 
   Files* = LruCache[DocumentURI, StoredFile]
     ## Mapping of path to files.
@@ -67,12 +70,9 @@ proc parseFile*(x: var Files, path: DocumentURI, version = NoVersion): ParsedFil
     data.ast = path.parseFile(data.content)
   return data.ast
 
-proc put*(x: var Files, path: DocumentURI, data: string, version: int) =
+proc put*(x: var Files, path: DocumentURI, data: sink string, version: int) =
   ## Adds a file into the file cache
   x.put(path, StoredFile(version: version, content: data))
 
-# proc set*(x: var Files, path: string, errors: sink seq[ParsedError]) =
-#   x.rawGet(path)
-
-proc put*(x: var Files, path: DocumentURI, data: string) =
+proc put*(x: var Files, path: DocumentURI, data: sink string) =
   x.put(path, data, NoVersion)

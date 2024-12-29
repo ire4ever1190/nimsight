@@ -18,10 +18,13 @@ const ourOptions = @[
   "--colors:off"
 ]
 
+func isNimscript(file: DocumentURI): bool =
+  file.path.splitFile.ext in [".nimble", ".nims"]
+
 func makeOptions(file: DocumentURI): seq[string] =
   ## Returns a list of options that should be applied to a file type
   result = @[]
-  if file.path.splitFile.ext in [".nimble", ".nims"]:
+  if file.isNimscript:
     result &= ["--include:system/nimscript"]
 
 proc exploreAST*(x: NodePtr, filter: proc (x: NodePtr): bool,
@@ -190,10 +193,9 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
   ## Parses errors from `nim check` into a more structured form
   # See if we can get errors from the cache
   let file = handle.getRawFile(x)
-  if file.errors.len > 0: return file.errors
-
+  if file.ranCheck: return file.errors
   # If not, then run the compiler to get the messages
-  let (outp, exitCode) = handle.execProcess(
+  let (outp, _) = handle.execProcess(
     "nim",
     @["check"] & ourOptions & makeOptions(x) & "-",
     input=file.content,
@@ -205,13 +207,16 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
 
   # Store the errors in the cache
   file.errors = result
+  file.ranCheck = true
 
-proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
-  ## Returns all the diagnostics for a document.
-  ## Mainly just converts the stored errors into Diagnostics
-  let root = handle.parseFile(x).ast
-  for err in handle.getErrors(x):
-    # Convert from basic line info into extended line info (i.e. is full range from AST)
+
+proc toDiagnostics*(
+  errors: openArray[ParsedError],
+  root: Tree
+): seq[Diagnostic] {.gcsafe.} =
+  ## Converts a list of errors into diagnostics
+  for err in errors:
+    # Convert from basic line info into extended line info (i.e. full range from AST)
     let range = root.toRange(err.location)
     if range.isNone: continue
 
@@ -235,3 +240,10 @@ proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.g
       relatedInformation: if info.len > 0: some info
                           else: none(seq[DiagnosticRelatedInformation])
     )
+
+
+proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
+  ## Returns all the diagnostics for a document.
+  ## Mainly just converts the stored errors into Diagnostics
+  let root = handle.parseFile(x).ast
+  handle.getErrors(x).toDiagnostics(root)

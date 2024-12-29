@@ -1,4 +1,4 @@
-# Nim sight 👀
+# Nim Sight 👀
 
 > Get insight with NimSight
 
