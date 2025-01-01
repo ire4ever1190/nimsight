@@ -116,12 +116,15 @@ Person
  - name
  - age
  - alive
+ - handler
 Foo
  - A
  - B
  - C
  - D
  - E
+Equalable
+ - ==
 someLet
 anotherLet
 someConst
