@@ -1,5 +1,5 @@
 ## Utils for working with Nim check
-import std/[osproc, strformat, strscans, strutils, options, sugar, os, streams, paths]
+import std/[osproc, strformat, strscans, strutils, options, sugar, os, streams, paths, logging]
 import types, hooks, server, params, errors
 
 import utils/ast
@@ -49,17 +49,28 @@ func toSymbolKind(x: NodePtr): SymbolKind =
     Function
   of nkMethodDef:
     Method
+  of nkTypeClassTy:
+    Interface
+  of nkRefTy, nkObjectTy: # Not correct! nkRef could just be a type alias not an obkect
+    Object
+  of nkEnumTy:
+    Enum
   of nkTypeDef:
-    case x[2][].kind:
-    of nkTypeClassTy:
-      Interface
-    of nkRefTy, nkObjectTy: # Not correct! nkRef could just be a type alias not an obkect
-      Object
+   x[2].toSymbolKind()
+  of nkIdent:
+    # Depending on the parent, we change the type
+    let parent = x.parent({nkIdentDefs, nkConstDef})
+    case parent.kind
+    of nkObjectTy:
+      Field
     of nkEnumTy:
-      Enum
-    else:
-      TypeParameter
+      EnumMember
+    of nkConstSection:
+      Constant
+    else: Variable
   else:
+    {.cast(noSideEffect).}:
+      debug "Kind ", x[].kind
     # Likely not good enough
     Variable
 
@@ -71,16 +82,6 @@ proc toDocumentSymbol(x: NodePtr, kind = x.toSymbolKind()): DocumentSymbol =
     selectionRange: x.nameNode.initRange()
   )
 
-
-# TODO: Clean up this whole process
-# Maybe make a genxeric if kind: body: recurse children thing?
-proc collectTypeFields(x: NodePtr, symbols: var seq[DocumentSymbol]) =
-  if x[].kind == nkIdentDefs:
-    symbols &= x.toDocumentSymbol(kind=Property)
-  elif x[].hasSons:
-    for child in x:
-      child.collectTypeFields(symbols)
-
 proc collectIdentDefs(x: NodePtr): seq[DocumentSymbol] =
   var res: seq[DocumentSymbol]
   x.exploreAST(ofKind({nkIdentDefs, nkConstDef})) do (node: NodePtr) -> bool:
@@ -88,18 +89,6 @@ proc collectIdentDefs(x: NodePtr): seq[DocumentSymbol] =
       res &= x.getPtr(child).toDocumentSymbol()
   return res
 
-proc collectType(node: NodePtr): DocumentSymbol =
-  ## Collects a document symbol for a type definition
-  assert node[].kind == nkTypeDef, "Must be a type section"
-
-  let syms = node.toDocumentSymbol()
-
-  syms.children &= node.collectIdentDefs()
-
-  node.exploreAST(ofKind({nkEnumTy})) do (node: NodePtr) -> bool:
-    node.exploreAST(ofKind({nkIdent, nkEnumFieldDef})) do (node: NodePtr) -> bool:
-      syms.children &= (if node[].kind == nkIdent: node else: node[0]).toDocumentSymbol()
-  return syms
 
 proc outlineDocument*(x: NodePtr): seq[DocumentSymbol] =
   ## Creates an outline of symbols in the document.
@@ -113,8 +102,19 @@ proc outlineDocument*(x: NodePtr): seq[DocumentSymbol] =
     of nkProcDef..nkIteratorDef:
       symbols &= node.toDocumentSymbol()
     of nkTypeSection:
-      node.exploreAST(ofKind({nkTypeDef})) do (node: NodePtr) -> bool:
-        symbols &= node.collectType()
+      for typeDef in node:
+        var sym = typeDef.toDocumentSymbol()
+
+        # Go through every field. We want to get identDefs so we don't recurse into the right
+        # hand and get procTy nodes
+        const careAbout = {nkIdentDefs, nkIdent, nkEnumFieldDef,  nkProcDef..nkIteratorDef}
+        typeDef[2].exploreAst(ofKind(careAbout)) do (node: NodePtr) -> bool:
+          if node.kind == nkIdentDefs:
+            for i in 0 ..< node.len - 2:
+              sym.children &= node[i].toDocumentSymbol()
+          else:
+            sym.children &= node.toDocumentSymbol()
+        symbols &= sym
     else: discard
   return symbols
 
