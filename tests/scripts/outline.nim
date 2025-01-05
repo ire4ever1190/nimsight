@@ -7,11 +7,14 @@ type
   Person = object
     name, age: string
     alive: bool
+    handler: proc (a: int)
   Foo = enum
     A
     B
     C, D
-    E = 1
+    E = 8
+  Equalable = concept
+    proc `==`(a, b: Self)
 
 let
   someLet = 1
