@@ -11,13 +11,15 @@ import types
 const NoVersion* = -1
 
 type
-  StoredFile* {.explain.} = concept
-    ## Abstract stored file. Only requirement is that
-    ## it stores the actual content. Extra metadata can be stored
-    ## alongisde it
-    proc content(x: Self): string
+  BasicFile* = ref object of RootObj
+    ## Basic file that just stores the contents.
+    ## Can be inherited to add extra metadata
+    content*: string
+      ## Contents of the file
+    version* = NoVersion
+      ## The version has specified by the client
 
-  FileStore*[M: StoredFile] = LruCache[DocumentURI, M]
+  FileStore* = LruCache[DocumentURI, BasicFile]
     ## Holds all the files stored by the server.
     ## Implemented as an LRU cache to auto handle unloading old files
 
@@ -30,11 +32,11 @@ type
     ## a file is done but that version isn't the one in
     ## the cache
 
-func initFileStore*[M](size: int): FileStore[M] =
+func initFileStore*(size: int): FileStore =
   ## Constructs the files. Small wrapper since I'll add more logic later
-  init(FileStore[M], size)
+  FileStore.init(size)
 
-func get*[M](x: var FileStore[M], path: DocumentURI, version = NoVersion): M =
+func rawGet*(x: var FileStore, path: DocumentURI, version = NoVersion): BasicFile =
   ## This gets the internal stored object from the file store.
   let res = x.get(path)
   # Convert result into an exception
@@ -46,8 +48,8 @@ func get*[M](x: var FileStore[M], path: DocumentURI, version = NoVersion): M =
     raise (ref InvalidFileVersion)(msg: "'{path}' version has invalid version")
   return file
 
-func `[]`*[M](
-  x: var FileStore[M],
+func `[]`*(
+  x: var FileStore,
   path: DocumentURI,
   version = NoVersion
 ): string {.raises: [FileNotInCache, InvalidFileVersion].} =
@@ -55,9 +57,9 @@ func `[]`*[M](
   ## If [NoVersion] is passed for [version] then it doesn't check the versions
   return x.rawGet(path, version).content
 
-proc put*[M](x: var FileStore[M], path: DocumentURI, data: sink string, version: int) =
+proc put*(x: var FileStore, path: DocumentURI, data: sink string, version: int) =
   ## Adds a file into the file cache
-  x.put(path, StoredFile[M](version: version, content: data))
+  x.put(path, BasicFile(version: version, content: data))
 
-proc put*[M](x: var FileStore[M], path: DocumentURI, data: sink string) =
+proc put*(x: var FileStore, path: DocumentURI, data: sink string) =
   x.put(path, data, NoVersion)

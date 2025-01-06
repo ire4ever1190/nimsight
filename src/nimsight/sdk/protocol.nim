@@ -82,7 +82,7 @@ proc sendPayload[T](payload: sink T) {.gcsafe.} =
   respBody.writeResponse()
 
 
-proc respond*(request: Message, err: ServerError) =
+proc respond*(request: Message, err: sink ServerError) =
   ## Responds to a request with an error
   let payload = ResponseError(
     code: err.code,
@@ -91,7 +91,7 @@ proc respond*(request: Message, err: ServerError) =
   )
   sendPayload(ResponseMessage(id: request.id, error: some payload))
 
-proc respond*(request: Message, payload: JsonNode) =
+proc respond*(request: Message, payload: sink JsonNode) =
   ## Responds to a request with a result
   sendPayload(ResponseMessage(id: request.id, `result`: some payload))
 

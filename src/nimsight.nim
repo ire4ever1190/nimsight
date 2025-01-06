@@ -1,10 +1,8 @@
 
 import std/[strutils, json, jsonutils, options, strformat, tables, paths, files]
-import nimsight/[nimCheck, server, protocol, customast]
 
-import nimsight/[types, params, methods, utils, logging]
-
-import nimsight/[codeActions, errors]
+import nimsight/sdk/server
+import nimsight/[nimCheck, server, protocol, customast, codeActions, errors, utils]
 
 import std/locks
 import std/os
@@ -13,6 +11,10 @@ type
   BooleanChoice = enum
     Yes
     No
+
+proc parseFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): ParsedFile =
+  readWith h.server[].filesLock:
+    return h.server[].files.parseFile(uri)
 
 using s: var Server
 

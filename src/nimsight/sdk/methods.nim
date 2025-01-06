@@ -25,6 +25,23 @@ proc defMethod[P, R](meth: string): RPCMethod[P, R] =
   ## Defines a new method
   result.meth = meth
 
+proc init*[P: not void, R, N](msg: RPCMessage[P, R, N], params: P): Message =
+  ## Constructs a message for `msg`
+  when N:
+    NotificationMessage(`method`: event, params: some params.toJson())
+  else:
+    let id = $genNanoID()
+    result = RequestMessage(`method`: event, params: params.toJson(), id: some id.toJson())
+
+proc init*[R, N](msg: RPCMessage[void, R, N]): Message =
+  ## Constructs a message. Specialisation that doesn't take parameters
+  when N:
+    NotificationMessage(`method`: event, params: none(JsonNode))
+  else:
+    let id = $genNanoID()
+    result = RequestMessage(`method`: event, params: newJNull(), id: some id.toJson())
+
+
 const
   # Client messages
   # > These are messages sent from the client to the server
@@ -67,6 +84,6 @@ const
   sendDiagnostics* = defNotification[DocumentURI]("extension/internal/sendDiagnostics")
     ## Custom method for making the server start sending diagnostics.
     ## Needed when client doesn't support pull diagnostics (kate)
-  knockoff* = defNotification[string]("extension/internal/knockoff")
+  knockoff* = defNotification[void]("extension/internal/knockoff")
     ## Custom method for making an internal worker knock off from work
 
