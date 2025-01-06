@@ -5,23 +5,25 @@ import std/options
 import params, types
 
 type
-  RPCMessage*[P, R] = object
+  RPCMessage*[P, R; isNotification: static[bool]] = object
     ## Define an RPC message with a input parameter `P` and return value `R`
-    meth: string
+    meth*: string
       ## The method used to identify the message
-    isNotification: bool
-      ## Whether its a notification or notification.
-      ## Notifications don't have a response sent for them'
 
-proc defNotification[P](meth: string): RPCMessage[P, void] =
+  RPCMethod*[P, R] = RPCMessage[P, R, true]
+    ## Alias for [RPCMessage] that is a method
+
+  RPCNotification*[P] = RPCMessage[P, void, false]
+    ## Alias for [RPCMessage] that returns nothing (is a notification)
+    # TODO: Is just checking for `void` return good enough to determine if its a notification?
+
+proc defNotification[P](meth: string): RPCNotification[P] =
   ## Defines a new notification
   result.meth = meth
-  result.isNotification = true
 
-proc defMethod[P, R](meth: string): RPCMessage[P, R] =
+proc defMethod[P, R](meth: string): RPCMethod[P, R] =
   ## Defines a new method
   result.meth = meth
-  result.isNotification = false
 
 const
   # Client messages

@@ -111,11 +111,11 @@ proc get*[T](table: var ResponseTable, id: string, res: out T) =
 proc get*[T](table: var ResponseTable, id: string): T =
   table.get(id, result)
 
-proc sendRecvMessage(
+proc sendRecvMessage[P, R](
   server: var Server,
-  meth: static[string],
-  params: getMethodParam(meth)
-): getMethodReturn(meth) =
+  meth: RPCMessage[P, R],
+  params: P
+): R =
   ## Sends a message to the client, and then blocks until it reads a response
   let id = sendRequestMessage(
     meth,

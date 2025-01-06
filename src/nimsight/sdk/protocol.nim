@@ -1,8 +1,9 @@
 ## Handles communication between the client/server
 import std/[json, jsonutils, options, strscans, strutils, strformat, locks]
-import types, hooks, methods
 
-import params
+
+import types, hooks, methods, utils/snippets
+
 import pkg/anano
 
 proc readPayload*(): JsonNode =
@@ -99,19 +100,18 @@ proc send*[T: Message](msg: sink T) =
   # TODO: Some kind of ID generation to match up responses
   sendPayload(msg)
 
-proc sendNotification*(meth: static[string], payload: getMethodParam(meth)) {.gcsafe.} =
-  static:
-    assert meth.isNotification(), meth & " is not a notification"
+proc sendNotification*[P](meth: RPCNotification[P], payload: P) {.gcsafe.} =
   {.gcsafe.}:
     send(
       NotificationMessage(
-        `method`: meth,
+        `method`: meth.meth,
         params: some payload.toJson()
       )
     )
-proc sendRequestMessage*(meth: static[string], payload: getMethodParam(meth)): string {.gcsafe.} =
-  static:
-    assert not meth.isNotification(), meth & " is not a request"
+
+proc sendRequestMessage*[P, R](meth: RPCMethod[P, R], payload: P): string {.gcsafe.} =
+  ## Sends a request message. Returns the ID which can be used to listen out
+  ## for the response
   result = $genNanoID()
   {.gcsafe.}:
     send(
@@ -121,8 +121,6 @@ proc sendRequestMessage*(meth: static[string], payload: getMethodParam(meth)): s
         id: some toJson(result)
       )
     )
-
-
 
 proc showMessage*(message: string, typ: MessageType) =
   ## Sends a message to be shown in the client
