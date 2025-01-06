@@ -1,10 +1,10 @@
 ## Utils for working with Nim check
 import std/[osproc, strformat, strscans, strutils, options, sugar, os, streams, paths, logging]
-import types, hooks, server, params, errors
 
 import utils/ast
-
 import customast
+import errors
+import sdk/[types, hooks, server, params]
 
 import "$nim"/compiler/ast
 
@@ -45,7 +45,7 @@ func toSymbolKind(x: NodePtr): SymbolKind =
   case x[].kind
   of nkEnumFieldDef:
     EnumMember
-  of nkFuncDef, nkProcDef:
+  of nkFuncDef, nkProcDef, nkMacroDef, nkTemplateDef, nkIteratorDef:
     Function
   of nkMethodDef:
     Method
@@ -203,6 +203,7 @@ proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsaf
   )
 
   for chunk in outp.msgChunks:
+    # TODO: Check paths, think other errors are invading
     result &= chunk.parseError($x.path)
 
   # Store the errors in the cache

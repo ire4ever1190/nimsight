@@ -1,5 +1,8 @@
 ## Small utility for matching a string against a series of patterns.
-## Can bind to the captured substrings
+## Can bind to the captured substrings. Supports any pattern type that implements
+## ```nim
+## macro matches(inp: string, pat: T, variables: untyped)
+## ```
 
 import std/[macros, strscans]
 

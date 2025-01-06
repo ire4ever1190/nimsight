@@ -1,6 +1,8 @@
 import std/[pegs, strutils, sugar, strformat, options]
 
-import types, customast
+import customast
+
+import sdk/types
 
 import utils/[stringMatch]
 

@@ -1,6 +1,6 @@
 ## Handles communication between the client/server
 import std/[json, jsonutils, options, strscans, strutils, strformat, locks]
-import types, utils, hooks, methods
+import types, hooks, methods
 
 import params
 import pkg/anano

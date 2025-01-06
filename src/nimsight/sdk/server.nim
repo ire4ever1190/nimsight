@@ -1,9 +1,12 @@
+## This is the server. Its the heart of a language server and handles syncing files
+## and sending/receving RPC messages
+
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os]
 
-import utils, types, protocol, hooks, params, ./logging, ./files, ./customast, methods
+import types, protocol, hooks, params, ./logging, ./files, ./customast, methods
 import utils/locks
 
-import procmonitor
+import utils/procmonitor
 
 import threading/[channels, rwlock]
 
