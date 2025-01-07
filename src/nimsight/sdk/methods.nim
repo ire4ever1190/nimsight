@@ -28,18 +28,18 @@ proc defMethod[P, R](meth: string): RPCMethod[P, R] =
 proc init*[P: not void, R, N](msg: RPCMessage[P, R, N], params: P): Message =
   ## Constructs a message for `msg`
   when N:
-    NotificationMessage(`method`: event, params: some params.toJson())
+    NotificationMessage(`method`: msg.meth, params: some params.toJson())
   else:
     let id = $genNanoID()
-    result = RequestMessage(`method`: event, params: params.toJson(), id: some id.toJson())
+    result = RequestMessage(`method`: msg.meth, params: params.toJson(), id: some id.toJson())
 
 proc init*[R, N](msg: RPCMessage[void, R, N]): Message =
   ## Constructs a message. Specialisation that doesn't take parameters
   when N:
-    NotificationMessage(`method`: event, params: none(JsonNode))
+    NotificationMessage(`method`: msg.meth, params: none(JsonNode))
   else:
     let id = $genNanoID()
-    result = RequestMessage(`method`: event, params: newJNull(), id: some id.toJson())
+    result = RequestMessage(`method`: msg.meth, params: newJNull(), id: some id.toJson())
 
 
 const

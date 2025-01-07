@@ -4,7 +4,7 @@
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os]
 
 import types, protocol, hooks, params, ./logging, ./files, methods
-import utils/locks
+import utils/[locks, union]
 
 import utils/[procmonitor, snippets]
 
@@ -41,9 +41,7 @@ type
       ## Table of request ID to whether they have been cancelled or not.
       ## i.e. if the value is false, then the request has been cancelled by the server.
       ## It is the request handlers just to check this on a regular basis.
-    filesLock: RwLock
-      ## Lock on [files]
-    files {.guard: filesLock.}: FileStore
+    files: ProtectedVar[FileStore, RwLock]
       ## Stores all the files in use by the server
     running: Atomic[bool]
       ## Tracks if the server is shutting down or not
@@ -170,8 +168,9 @@ proc addHandler(server: var Server, event: string, handler: Handler) =
   ## Should only be called in the main thread (We don't lock the listeners)
   server.listeners[event] = handler
 
+type ListenHandler[P, R] = proc (r: RequestHandle, param: P): R
 
-proc listen*[P, R, N](server: var Server, msg: RPCMessage[P, R, N], handler: proc (param: P): R) =
+proc listen*[P, R, N](server: var Server, msg: RPCMessage[P, R, N], handler: ListenHandler[P, R]) =
   ## Adds a handler for an event
   proc inner(handle: RequestHandle, x: JsonNode): Option[JsonNode] {.stacktrace: off, gcsafe.} =
     ## Conversion of the JSON and catching any errors.
@@ -226,22 +225,21 @@ proc updateFile(s: var Server, params: DidChangeTextDocumentParams) =
   ## Updates file cache with updates
   let doc = params.textDocument
   assert params.contentChanges.len == 1, "Only full updates are supported"
-  writeWith s.filesLock:
-    for change in params.contentChanges:
-      s.files.put(doc.uri, change.text, doc.version)
+  discard s.files.write()
+  for change in params.contentChanges:
+    s.files.unsafeGet().put(doc.uri, change.text, doc.version)
 
 proc updateFile*(s: var Server, params: DidOpenTextDocumentParams) =
   ## Updates file cache with an open item
   let doc = params.textDocument
-  writeWith s.filesLock:
-    s.files.put(doc.uri, doc.text, doc.version)
+  s.files.write().value.put(doc.uri, doc.text, doc.version)
 
 proc updateFile*[T](h: RequestHandle, params: T) =
   h.server[].updateFile(params)
 
 proc getRawFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): BasicFile =
-  readWith h.server[].filesLock:
-    return h.server[].files.rawGet(uri, version)
+  var (files, _) = h.server[].files.read()
+  return files.rawGet(uri, version)
 
 proc getFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): string =
   h.getRawFile(uri, version).content
@@ -373,12 +371,14 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     inProgressLock: createRwLock(),
     version: version,
     queue: newChan[Message](),
-    filesLock: createRwLock(),
-    files: initFiles[F](20) # TODO: Make this configurable
+    files: initProtectedVar(
+      initFileStore(20), # TODO: Make this configurable
+      createRwLock()
+    )
   )
   result.running.store(true)
 
-  result.listen("initialize") do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
+  result.listen(initialize) do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
     # Find what is supported depending on what handlers are registered.
     # Some manual capabilities will also need to be added
     result = InitializeResult(

@@ -109,14 +109,14 @@ proc sendNotification*[P](meth: RPCNotification[P], payload: P) {.gcsafe.} =
       )
     )
 
-proc sendRequestMessage*[P, R](meth: RPCMethod[P, R], payload: P): string {.gcsafe.} =
+proc sendRequestMessage*[P, R](msg: RPCMethod[P, R], payload: P): string {.gcsafe.} =
   ## Sends a request message. Returns the ID which can be used to listen out
   ## for the response
   result = $genNanoID()
   {.gcsafe.}:
     send(
       RequestMessage(
-        `method`: meth,
+        `method`: msg.meth,
         params: payload.toJson(),
         id: some toJson(result)
       )
