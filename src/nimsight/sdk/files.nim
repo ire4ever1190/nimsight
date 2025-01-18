@@ -9,6 +9,7 @@ import std/[strformat, options]
 import types
 
 const NoVersion* = -1
+  ## Sential value for not caring about the version
 
 type
   BasicFile* = ref object of RootObj

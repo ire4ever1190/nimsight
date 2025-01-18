@@ -41,7 +41,7 @@ type
       ## Table of request ID to whether they have been cancelled or not.
       ## i.e. if the value is false, then the request has been cancelled by the server.
       ## It is the request handlers just to check this on a regular basis.
-    files: ProtectedVar[FileStore, RwLock]
+    files*: ProtectedVar[FileStore, RwLock]
       ## Stores all the files in use by the server
     running: Atomic[bool]
       ## Tracks if the server is shutting down or not

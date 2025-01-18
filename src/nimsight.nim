@@ -1,8 +1,9 @@
 
 import std/[strutils, json, jsonutils, options, strformat, tables, paths, files]
 
-import nimsight/sdk/server
-import nimsight/[nimCheck, server, protocol, customast, codeActions, errors, utils]
+import nimsight/sdk/[server, types, files, methods]
+import nimsight/sdk/utils/locks
+import nimsight/[nimCheck, server, protocol, customast, codeActions, files, utils]
 
 import std/locks
 import std/os
@@ -13,25 +14,23 @@ type
     No
 
 proc parseFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): ParsedFile =
-  readWith h.server[].filesLock:
-    return h.server[].files.parseFile(uri)
+  h.server[].files.write().value.parseFile(uri, version)
 
 using s: var Server
-
 
 proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
   # Send the parser errors right away
   let ast = handle.parseFile(uri)
   if ast.errs.len > 0:
-    sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
+    sendNotification(sendDiagnostics, PublishDiagnosticsParams(
       uri: uri,
       diagnostics: ast.errs.parseErrors($ uri.path, ast.ast).toDiagnostics(ast.ast)
     ))
 
   # Then let the other errors get sent
   let diagnostics = handle.getDiagnostics(uri)
-  sendNotification("textDocument/publishDiagnostics", PublishDiagnosticsParams(
+  sendNotification(sendDiagnostics, PublishDiagnosticsParams(
     uri: uri,
     diagnostics: diagnostics
   ))
@@ -62,7 +61,7 @@ lsp.listen(sendDiagnostics) do (h: RequestHandle, params: DocumentUri) {.gcsafe.
 
 lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
   h.updateFile(params)
-  h.server[].queue(sendDiagnostics.newMessage(params.textDocument.uri))
+  h.server[].queue(sendDiagnostics.init(params.textDocument.uri))
 
 lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
   h.updateFile(params)
@@ -102,7 +101,7 @@ lsp.listen(documentSymbols) do (
 ) -> seq[DocumentSymbol] {.gcsafe.}:
   return h.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
 
-lsp.listen(initialNotification) do (h: RequestHandle, params: InitializedParams):
+lsp.listen(initialized) do (h: RequestHandle, params: InitializedParams):
   logging.info("Client initialised")
   # Check that if there is a nimble.lock file, there is a nimble.paths file.
   # This stops the issue of wondering why nim check is complaining about not
