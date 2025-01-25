@@ -3,7 +3,8 @@
 {.used.}
 
 import "$nim"/compiler/ast
-import ../[types, params, server, customast]
+import ../sdk/[types, params, server]
+import ../customast
 import ../utils/ast
 import ./utils
 import std/[strformat, options, tables, sugar, logging]

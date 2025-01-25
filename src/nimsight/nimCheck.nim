@@ -1,10 +1,10 @@
 ## Utils for working with Nim check
 import std/[osproc, strformat, strscans, strutils, options, sugar, os, streams, paths, logging]
 
-import utils/ast
-import customast
-import errors
 import sdk/[types, hooks, server, params]
+
+import utils/ast
+import customast, files, errors
 
 import "$nim"/compiler/ast
 
@@ -192,7 +192,7 @@ proc findUsages*(handle: RequestHandle, file: DocumentURI, pos: Position): Optio
 proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
   # See if we can get errors from the cache
-  let file = handle.getRawFile(x)
+  let file = NimStoredFile(handle.getRawFile(x))
   if file.ranCheck: return file.errors
   # If not, then run the compiler to get the messages
   let (outp, _) = handle.execProcess(

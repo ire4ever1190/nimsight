@@ -1,20 +1,17 @@
 
 import std/[strutils, json, jsonutils, options, strformat, tables, paths, files]
 
-import nimsight/sdk/[server, types, files, methods]
-import nimsight/sdk/utils/locks
-import nimsight/[nimCheck, server, protocol, customast, codeActions, files, utils]
+import nimsight/sdk/[server, types, files, methods, protocol, params, logging]
+import nimsight/[nimCheck, customast, codeActions, files, utils, errors]
 
-import std/locks
-import std/os
+import std/[locks, os]
+
+import pkg/anano
 
 type
   BooleanChoice = enum
     Yes
     No
-
-proc parseFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): ParsedFile =
-  h.server[].files.write().value.parseFile(uri, version)
 
 using s: var Server
 
@@ -23,14 +20,14 @@ proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
   # Send the parser errors right away
   let ast = handle.parseFile(uri)
   if ast.errs.len > 0:
-    sendNotification(sendDiagnostics, PublishDiagnosticsParams(
+    sendNotification(publishDiagnostics, PublishDiagnosticsParams(
       uri: uri,
       diagnostics: ast.errs.parseErrors($ uri.path, ast.ast).toDiagnostics(ast.ast)
     ))
 
   # Then let the other errors get sent
   let diagnostics = handle.getDiagnostics(uri)
-  sendNotification(sendDiagnostics, PublishDiagnosticsParams(
+  sendNotification(publishDiagnostics, PublishDiagnosticsParams(
     uri: uri,
     diagnostics: diagnostics
   ))
@@ -45,7 +42,7 @@ var
 
 initLock(currentCheckLock)
 
-lsp.listen(sendDiagnostics) do (h: RequestHandle, params: DocumentUri) {.gcsafe.}:
+lsp.listen[:DocumentURI, void, false](sendDiagnostics) do (h: RequestHandle, params: DocumentUri) {.gcsafe.}:
   try:
     # Cancel any previous request, then register this as the latest
     {.gcsafe.}:
@@ -59,13 +56,13 @@ lsp.listen(sendDiagnostics) do (h: RequestHandle, params: DocumentUri) {.gcsafe.
     if e.code != RequestCancelled:
       raise e
 
-lsp.listen(changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
+lsp.listen[:DidChangeTextDocumentParams, void, false](changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
   h.updateFile(params)
   h.server[].queue(sendDiagnostics.init(params.textDocument.uri))
 
-lsp.listen(openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
+lsp.listen[:DidOpenTextDocumentParams, ](openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
   h.updateFile(params)
-  h.server[].queue(sendDiagnostics.newMessage(params.textDocument.uri))
+  h.server[].queue(sendDiagnostics.init(params.textDocument.uri))
 
 lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
   discard

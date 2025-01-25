@@ -1,4 +1,5 @@
-import ../[customast, server, params]
+import ../[customast, files]
+import ../sdk/[server, params]
 import std/[options, logging, strutils]
 
 import "$nim"/compiler/[lexer, llstream, pathutils, idents, options]

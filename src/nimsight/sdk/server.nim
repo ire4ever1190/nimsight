@@ -168,13 +168,13 @@ proc addHandler(server: var Server, event: string, handler: Handler) =
   ## Should only be called in the main thread (We don't lock the listeners)
   server.listeners[event] = handler
 
+
 type ListenHandler[P, R] = proc (r: RequestHandle, param: P): R
 
 proc listen*[P, R, N](server: var Server, msg: RPCMessage[P, R, N], handler: ListenHandler[P, R]) =
   ## Adds a handler for an event
   proc inner(handle: RequestHandle, x: JsonNode): Option[JsonNode] {.stacktrace: off, gcsafe.} =
     ## Conversion of the JSON and catching any errors.
-    ## TODO: Maybe use error return and then raises: []?
     let data = try:
         x.jsonTo(P, JOptions(allowMissingKeys: true, allowExtraKeys: true))
       except CatchableError as e:
