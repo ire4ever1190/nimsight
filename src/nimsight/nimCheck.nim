@@ -4,7 +4,7 @@ import std/[osproc, strformat, strscans, strutils, options, sugar, os, streams, 
 import sdk/[types, hooks, server, params, files]
 
 import utils/ast
-import customast, errors
+import customast, errors, files
 
 import "$nim"/compiler/ast
 

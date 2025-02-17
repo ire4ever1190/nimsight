@@ -47,16 +47,13 @@ proc read*[T](v: var ProtectedVar[T, RwLock]): lent LockedVar[T, ScopedRead] =
   result.lock = ScopedRead(addr v.lock)
   result.value = v.value
 
-proc write*[T](v: var ProtectedVar[T, RwLock]): LockedVar[var T, ScopedWrite] =
+proc write*[T](v: var ProtectedVar[T, RwLock]): LockedVar[ptr T, ScopedWrite] =
   ## Grants write access to the variable.
   v.lock.beginWrite()
-  result.lock = ScopedWrite(addr v.lock)
-  result.value = v.value
+  result = (addr v.value, ScopedWrite(addr v.lock))
 
 proc initProtectedVar*[T, L](v: sink T, lock: sink L): ProtectedVar[T, L] =
-  result.value = v
-  result.lock = lock
-
+  result = ProtectedVar[T, L](value: v, lock: lock)
 
 proc unsafeGet*[T, L](v: var ProtectedVar[T, L]): var T {.inline.} = v.value
 
@@ -72,7 +69,7 @@ proc release*(x: var ConditionVar) =
   ## Releases the lock inside the condition variable
   x.lock.release()
 
-proc wait*(c: var ConditionVar, predicate: proc (): bool) {.effectsOf: predicate.} =
+proc wait*(c: var ConditionVar, predicate: proc (): bool) {.inline, effectsOf: predicate.} =
   ## Waits for the predicate to become true.
   ## Checks every time the condition is signaled.
   ## Is eager, if the predicate passes initially then it

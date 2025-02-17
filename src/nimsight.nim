@@ -98,7 +98,7 @@ lsp.listen(documentSymbols) do (
 ) -> seq[DocumentSymbol] {.gcsafe.}:
   return h.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
 
-lsp.listen(initialized) do (h: RequestHandle, params: InitializedParams):
+lsp.listen[:InitializedParams, void, false](initialized) do (h: RequestHandle, params: InitializedParams):
   logging.info("Client initialised")
   # Check that if there is a nimble.lock file, there is a nimble.paths file.
   # This stops the issue of wondering why nim check is complaining about not

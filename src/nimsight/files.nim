@@ -24,4 +24,4 @@ proc parseFile*(x: var FileStore, path: DocumentURI, version = NoVersion): Parse
 
 proc parseFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): ParsedFile =
   ## Helper to get a file from the server
-  h.server[].files.write().value.parseFile(uri, version)
+  h.server[].files.write().value[].parseFile(uri, version)

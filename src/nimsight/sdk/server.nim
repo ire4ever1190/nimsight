@@ -231,7 +231,7 @@ proc updateFile(s: var Server, params: DidChangeTextDocumentParams) =
 proc updateFile*(s: var Server, params: DidOpenTextDocumentParams) =
   ## Updates file cache with an open item
   let doc = params.textDocument
-  s.files.write().value.put(doc.uri, doc.text, doc.version)
+  s.files.write().value[].put(doc.uri, doc.text, doc.version)
 
 proc updateFile*[T](h: RequestHandle, params: T) =
   h.server[].updateFile(params)
