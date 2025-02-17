@@ -119,9 +119,7 @@ proc discriminator(x: NimNode): NimNode =
 
 macro branches*(typ: typedesc, body: untyped) =
   ## Unrolls the body into each type
-  let
-    recCase = typ.getType[1][2][0]
-    discrim = recCase[0]
+  let recCase = typ.getType[1][2][0]
   result = newStmtList()
   for (_, typ) in typ.types:
     let tempName = ident"it"

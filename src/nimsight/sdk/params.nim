@@ -2,7 +2,7 @@
 
 import std/[options, json, paths]
 
-import utils/snippets
+import utils
 
 import types
 

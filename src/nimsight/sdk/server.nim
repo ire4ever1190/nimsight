@@ -4,9 +4,8 @@
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os]
 
 import types, protocol, hooks, params, ./logging, ./files, methods
-import utils/[locks, union]
 
-import utils/[procmonitor, snippets]
+import utils
 
 import threading/[channels, rwlock]
 

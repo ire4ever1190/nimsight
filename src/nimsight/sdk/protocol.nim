@@ -2,7 +2,7 @@
 import std/[json, jsonutils, options, strscans, strutils, strformat, locks]
 
 
-import types, hooks, methods, utils/snippets
+import types, hooks, methods, utils
 
 import pkg/anano
 
