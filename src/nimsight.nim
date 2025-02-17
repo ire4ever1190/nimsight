@@ -64,7 +64,7 @@ lsp.listen[:DidOpenTextDocumentParams, void, false](openedNotification) do (h: R
   h.updateFile(params)
   h.server[].queue(sendDiagnostics.init(params.textDocument.uri))
 
-lsp.listen(savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
+lsp.listen[:DidSaveTextDocumentParams, void, false](savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
   discard
 
 lsp.listen(selectionRange) do (h: RequestHandle, params: SelectionRangeParams) -> seq[SelectionRange] {.gcsafe.}:
