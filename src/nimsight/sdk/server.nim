@@ -1,14 +1,14 @@
+## This is the server. Its the heart of a language server and handles syncing files
+## and sending/receving RPC messages
+
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os]
 
-import utils, types, protocol, hooks, params, ./logging, ./files, ./customast, methods
-import utils/locks
+import types, protocol, hooks, params, ./logging, methods
 
-import procmonitor
+import utils
 
 import threading/[channels, rwlock]
-
-import pkg/anano
-
+#
 type
   Handler* = proc (handle: RequestHandle, x: JsonNode): Option[JsonNode] {.gcsafe.}
     ## Handler for a method. Uses JsonNode to perform type elision,
@@ -38,10 +38,6 @@ type
       ## Table of request ID to whether they have been cancelled or not.
       ## i.e. if the value is false, then the request has been cancelled by the server.
       ## It is the request handlers just to check this on a regular basis.
-    filesLock: RwLock
-      ## Lock on [files]
-    files {.guard: filesLock.}: Files
-      ## Stores all the files in use by the server
     running: Atomic[bool]
       ## Tracks if the server is shutting down or not
     roots*: seq[Path]
@@ -87,7 +83,8 @@ proc isRunning*(r: RequestHandle): bool =
 proc isRunning*(s: var Server): bool {.inline.} = s.running.load()
 
 const NimblePkgVersion {.strdefine.} = "Unknown"
-  ## Default to using the version defined by nimble
+  ## Nimble defines this when building a project. Default the server
+  ## to this version
 
 proc put*[T](table: var ResponseTable, id: string, data: sink T) =
   ## Sets the response value in the table
@@ -108,13 +105,13 @@ proc get*[T](table: var ResponseTable, id: string, res: out T) =
 proc get*[T](table: var ResponseTable, id: string): T =
   table.get(id, result)
 
-proc sendRecvMessage(
+proc sendRecvMessage[P, R](
   server: var Server,
-  meth: static[string],
-  params: getMethodParam(meth)
-): getMethodReturn(meth) =
+  meth: RPCMethod[P, R],
+  params: P
+): R =
   ## Sends a message to the client, and then blocks until it reads a response
-  let id = sendRequestMessage(
+  let id = $sendRequestMessage(
     meth,
     params
   )
@@ -164,35 +161,32 @@ proc showMessageRequest*[T: enum](
 proc addHandler(server: var Server, event: string, handler: Handler) =
   ## Internal method for adding handler.
   ## Should only be called in the main thread (We don't lock the listeners)
-  # if event notin server.listeners:
-    # server.listeners[event] = @[]
   server.listeners[event] = handler
 
 
-proc listen*(server: var Server, event: static[string], handler: getMethodHandler(event)) =
+type ListenHandler[P, R] = proc (r: RequestHandle, param: P): R
+
+proc listen*[P, R, N](server: var Server, msg: RPCMessage[P, R, N], handler: ListenHandler[P, R]) =
   ## Adds a handler for an event
-  type
-    ParamType = getMethodParam(event)
-    ReturnType = typeof(handler(RequestHandle(), default(ParamType)))
   proc inner(handle: RequestHandle, x: JsonNode): Option[JsonNode] {.stacktrace: off, gcsafe.} =
     ## Conversion of the JSON and catching any errors.
-    ## TODO: Maybe use error return and then raises: []?
     let data = try:
-        x.jsonTo(ParamType, JOptions(allowMissingKeys: true, allowExtraKeys: true))
+        x.jsonTo(P, JOptions(allowMissingKeys: true, allowExtraKeys: true))
       except CatchableError as e:
         raise (ref ServerError)(code: InvalidParams, msg: e.msg, data: x)
     try:
-      when ReturnType is not void:
+      when R is not void:
         let ret = handler(handle, data)
         {.gcsafe.}:
           return some ret.toJson()
-      elif event.isNotification:
+      elif N:
         handler(handle, data)
         return none(JsonNode)
       else:
         handler(handle, data)
         return some newJNull()
     except ServerError:
+      # Bubble it up, will be handled later
       raise
     except CatchableError as e:
       let entries = collect:
@@ -200,15 +194,7 @@ proc listen*(server: var Server, event: static[string], handler: getMethodHandle
          fmt"{entry.filename}:{entry.line} {entry.procName}"
       raise (ref ServerError)(code: RequestFailed, msg: e.msg, data: %* entries)
 
-  server.addHandler(event, inner)
-
-proc newMessage*(event: static[string], params: getMethodParam(event)): Message =
-  ## Constructs a message
-  if event.isNotification:
-    result = NotificationMessage(`method`: event, params: some params.toJson())
-  else:
-    let id = $genNanoID()
-    result = RequestMessage(`method`: event, params: params.toJson(), id: some id.toJson())
+  server.addHandler(msg.meth, inner)
 
 proc meth(x: Message): string =
   case x
@@ -228,35 +214,7 @@ proc params(x: Message): JsonNode =
 proc updateRequestRunning(s: var Server, id: string, val: bool) =
   ## Updates the request running statusmi
   writeWith s.inProgressLock:
-    s.inProgress[id] = val
-
-proc updateFile(s: var Server, params: DidChangeTextDocumentParams) =
-  ## Updates file cache with updates
-  let doc = params.textDocument
-  assert params.contentChanges.len == 1, "Only full updates are supported"
-  writeWith s.filesLock:
-    for change in params.contentChanges:
-      s.files.put(doc.uri, change.text, doc.version)
-
-proc updateFile*(s: var Server, params: DidOpenTextDocumentParams) =
-  ## Updates file cache with an open item
-  let doc = params.textDocument
-  writeWith s.filesLock:
-    s.files.put(doc.uri, doc.text, doc.version)
-
-proc updateFile*[T](h: RequestHandle, params: T) =
-  h.server[].updateFile(params)
-
-proc getRawFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): StoredFile =
-  readWith h.server[].filesLock:
-    return h.server[].files.rawGet(uri, version)
-
-proc getFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): string =
-  h.getRawFile(uri, version).content
-
-proc parseFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): ParsedFile =
-  readWith h.server[].filesLock:
-    return h.server[].files.parseFile(uri)
+    s.inProgress[$id] = val
 
 proc workerThread(server: ptr Server) {.thread.} =
   ## Initialises a worker thread and then handles messages
@@ -274,7 +232,7 @@ proc workerThread(server: ptr Server) {.thread.} =
     # We are only reading this so it should be fine right??
     if request of ResponseMessage:
       let resp = ResponseMessage(request)
-      server[].results.put(resp.id.getStr(), resp.`result`.unsafeGet)
+      server[].results.put(resp.id.str, resp.`result`.unsafeGet)
       continue
 
     if request.meth in server[].listeners:
@@ -283,7 +241,7 @@ proc workerThread(server: ptr Server) {.thread.} =
         handle = initHandle(id, server)
       try:
         let returnVal = handler(handle, request.params)
-        if returnVal.isSome():
+        if returnVal.isSome() and id.isSome():
           request.respond(returnVal.unsafeGet())
       except ServerError as e:
         debug("Failed: ", e.msg)
@@ -323,7 +281,7 @@ proc shutdown*(server: var Server) =
   # Send a shutdown message. Each worker needs to read a message
   # so that it checks the running flag again.
   for _ in 0..server.workers.high:
-    server.queue("shutdown".newMessage(""))
+    server.queue(knockoff.init())
   # And make sure every thread stops.
   # Don't join the current thread
   joinThreads(server.workers)
@@ -385,12 +343,10 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     inProgressLock: createRwLock(),
     version: version,
     queue: newChan[Message](),
-    filesLock: createRwLock(),
-    files: initFiles(20) # TODO: Make this configurable
   )
   result.running.store(true)
 
-  result.listen("initialize") do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
+  result.listen(initialize) do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
     # Find what is supported depending on what handlers are registered.
     # Some manual capabilities will also need to be added
     result = InitializeResult(

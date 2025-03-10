@@ -23,7 +23,7 @@ proc release*(x: var ConditionVar) =
   ## Releases the lock inside the condition variable
   x.lock.release()
 
-proc wait*(c: var ConditionVar, predicate: proc (): bool) {.effectsOf: predicate.} =
+proc wait*(c: var ConditionVar, predicate: proc (): bool) {.inline, effectsOf: predicate.} =
   ## Waits for the predicate to become true.
   ## Checks every time the condition is signaled.
   ## Is eager, if the predicate passes initially then it
@@ -52,3 +52,4 @@ template withLock*(c: var ConditionVar, body: untyped) =
     body
   finally:
     release c
+

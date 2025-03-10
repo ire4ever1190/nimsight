@@ -1,8 +1,10 @@
+## Contains type definitions for the methods
+
 import std/[options, json, paths]
 
-{.used.} # Sometimes this is just imported to make sure everything is registered
+import utils
 
-import types, utils, methods
+import types
 
 type
   InitializeParams* = ref object of WorkDoneProgressParams
@@ -127,40 +129,24 @@ type
     textDocument*: TextDocumentIdentifier
   InitializedParams* = object
 
+  InitializeResult* = object
+    capabilities*: ServerCapabilities
+    serverInfo*: ServerInfo
+
+  TextDocumentPositionParams* = object
+    ## Selects a position inside a doucment
+    ##
+    ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentPositionParams)
+    textDocument*: TextDocumentIdentifier
+    position*: Position
 
 func folders*(params: InitializeParams): seq[Path] =
   ## Returns all the paths that are in the intialisation
+  # Root URI has precedence over rootPath
   if params.rootUri.isSome():
     result &= params.rootUri.unsafeGet().path
   elif params.rootPath.isSome():
     result &= params.rootPath.unsafeGet()
+
   for folder in params.workspaceFolders.get(@[]):
     result &= folder.uri.path
-
-#
-# Client messages
-#
-registerClientMessage(pubDiagnotisticsNotification, PublishDiagnosticsParams, void, true)
-registerClientMessage(initializeRequest, InitializeParams, InitializeResult)
-registerClientMessage(logMessage, LogMessageParams, void, true)
-registerClientMessage(windowShowMessage, ShowMessageparams, void, true)
-registerClientMessage(windowShowMessageRequest, ShowMessageRequestParams, Option[MessageActionItem], false)
-
-#
-# Server messages
-#
-registerServerMessage(openedNotification, DidOpenTextDocumentParams, void, true)
-registerServerMessage(savedNotification, DidSaveTextDocumentParams, void, true)
-registerServerMessage(changedNotification, DidChangeTextDocumentParams, void, true)
-registerServerMessage(initialNotification, InitializedParams, void, true)
-registerServerMessage(symbolDefinition, TextDocumentPositionParams, Option[Location], false)
-# TODO: Add ability to support goofy returns like (Command | CodeAction)[]
-# Support is basically there, think its just the parsing that needs to be changed
-registerServerMessage(codeAction, CodeActionParams, seq[CodeAction], false)
-registerServerMessage(documentSymbols, DocumentSymbolParams, seq[DocumentSymbol], false)
-
-registerServerMessage(selectionRange, SelectionRangeParams, seq[SelectionRange], false)
-
-# These are internal messages that aren't sent by the client
-registerServerMessage(sendDiagnostics, DocumentURI, void, false)
-registerServerMessage("shutdown", string, void, true)

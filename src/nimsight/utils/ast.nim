@@ -1,6 +1,6 @@
 ## Utils for working with the Nim AST
 import "$nim"/compiler/[ast, idents, lineinfos, renderer]
-import ../types
+import ../sdk/types
 
 import std/[strformat, options]
 

@@ -7,7 +7,7 @@ import "$nim"/compiler/[ast, parser, syntaxes, options, msgs, idents, pathutils,
 
 import std/[sequtils, options, strformat]
 
-import types
+import sdk/types
 
 import utils/ast
 

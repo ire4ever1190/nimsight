@@ -1,4 +1,4 @@
-## Implements a logger that logs to the console
+## Implements a logger that logs to the client
 
 import std/logging
 
@@ -9,6 +9,7 @@ type
     ## Logger that logs to LSP client.
 
 func toMessageType(level: Level): MessageType =
+  ## Converts between LSP message level and Nim level
   const mapping: array[lvlDebug..lvlFatal, MessageType] = [
     lvlDebug: Debug,
     lvlInfo: Info,

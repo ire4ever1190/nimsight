@@ -193,4 +193,3 @@ register_cmd("Shutdown", function (opts)
   vim.lsp.stop_client(vim.lsp.get_clients())
 end, {})
 
-

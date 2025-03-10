@@ -1,9 +1,8 @@
 ## Handles communication between the client/server
-import std/[json, jsonutils, options, strscans, strutils, strformat, locks]
-import types, utils, hooks, methods
+import std/[json, jsonutils, options, strscans, strutils, strformat, locks, atomics, logging]
 
-import params
-import pkg/anano
+
+import types, hooks, methods, utils
 
 proc readPayload*(): JsonNode =
   ## Reads the JSON body that the client has sent
@@ -76,12 +75,11 @@ proc writeResponse(respBody: string) =
 proc sendPayload[T](payload: sink T) {.gcsafe.} =
   {.gcsafe.}:
     let resp = payload.toJson()
-
   let respBody = $resp
   respBody.writeResponse()
 
 
-proc respond*(request: Message, err: ServerError) =
+proc respond*(request: Message, err: sink ServerError) =
   ## Responds to a request with an error
   let payload = ResponseError(
     code: err.code,
@@ -90,39 +88,47 @@ proc respond*(request: Message, err: ServerError) =
   )
   sendPayload(ResponseMessage(id: request.id, error: some payload))
 
-proc respond*(request: Message, payload: JsonNode) =
+proc respond*(request: Message, payload: sink JsonNode) =
   ## Responds to a request with a result
   sendPayload(ResponseMessage(id: request.id, `result`: some payload))
 
-proc send*[T: Message](msg: sink T) =
+proc send*[T: Message](msg: T) =
   ## Sends a message to the client
-  # TODO: Some kind of ID generation to match up responses
-  sendPayload(msg)
+  # Need to make sure we are serialising the correct type
+  msg.sendPayload()
 
-proc sendNotification*(meth: static[string], payload: getMethodParam(meth)) {.gcsafe.} =
-  static:
-    assert meth.isNotification(), meth & " is not a notification"
+proc sendNotification*[P](meth: RPCNotification[P], payload: P) {.gcsafe.} =
   {.gcsafe.}:
     send(
       NotificationMessage(
-        `method`: meth,
+        `method`: meth.meth,
         params: some payload.toJson()
       )
     )
-proc sendRequestMessage*(meth: static[string], payload: getMethodParam(meth)): string {.gcsafe.} =
-  static:
-    assert not meth.isNotification(), meth & " is not a request"
-  result = $genNanoID()
+
+var requestID: Atomic[int]
+  ## Global counter for request ID since most implementations only support integers
+
+proc nextRequestID*(): int {.gcsafe.} =
+  ## Generates a request ID to use
+  {.gcsafe.}:
+    result = requestID.load()
+    atomicINc(requestID)
+  debug(fmt"Generating ID {result}: \n{getStacktrace()}")
+
+
+proc sendRequestMessage*[P, R](msg: RPCMethod[P, R], payload: P): int {.gcsafe.} =
+  ## Sends a request message. Returns the ID which can be used to listen out
+  ## for the response
+  result = nextRequestID()
   {.gcsafe.}:
     send(
       RequestMessage(
-        `method`: meth,
+        `method`: msg.meth,
         params: payload.toJson(),
         id: some toJson(result)
       )
     )
-
-
 
 proc showMessage*(message: string, typ: MessageType) =
   ## Sends a message to be shown in the client

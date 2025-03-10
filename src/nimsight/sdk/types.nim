@@ -1,6 +1,6 @@
 import std/[options, json, tables, hashes, paths, strutils]
 
-import utils
+import utils/union
 
 type
   ErrorCode* = enum
@@ -121,13 +121,6 @@ type
     ##
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#optionalVersionedTextDocumentIdentifier)
     version: Option[int]
-
-  TextDocumentPositionParams* = object
-    ## Selects a position inside a doucment
-    ##
-    ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentPositionParams)
-    textDocument*: TextDocumentIdentifier
-    position*: Position
 
   DocumentFilter* = object
     ## .. Info:: At least one option must be selected
@@ -357,10 +350,6 @@ type
     name*: string
     version*: Option[string]
 
-  InitializeResult* = object
-    capabilities*: ServerCapabilities
-    serverInfo*: ServerInfo
-
   WorkspaceFolder* = object
     uri*: DocumentURI
     name*: string
@@ -419,7 +408,6 @@ type
     range*: Range
     parent*: SelectionRange
 
-type
   ServerError* = object of CatchableError
     code*: ErrorCode
     data*: JsonNode
