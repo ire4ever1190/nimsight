@@ -1,7 +1,6 @@
 ## Contains utilities for working with stored Nim files
 
-import sdk/[types, server]
-import sdk/utils/locks
+import sdk/types
 import errors, customast
 
 ## Implements an abstraction layer for accessing files

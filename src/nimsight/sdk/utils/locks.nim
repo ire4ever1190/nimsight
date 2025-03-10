@@ -2,8 +2,6 @@
 import std/locks
 import std/private/threadtypes
 
-import pkg/threading/rwlock
-
 # Some of the comments are verbose since I was a lil confused when writing this
 
 type
