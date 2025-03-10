@@ -1,7 +1,7 @@
 ## Utils for working with Nim check
 import std/[osproc, strformat, strscans, strutils, options, sugar, os, streams, paths, logging]
 
-import sdk/[types, hooks, server, params, files]
+import sdk/[types, hooks, server, params]
 
 import utils/ast
 import customast, errors, files
@@ -189,10 +189,9 @@ proc findUsages*(handle: RequestHandle, file: DocumentURI, pos: Position): Optio
       s.usages &= (file, initPos(line, col))
   return some s
 
-proc getErrors*(handle: RequestHandle, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
+proc getErrors*(handle: RequestHandle, file: NimFile, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
   # See if we can get errors from the cache
-  let file = NimStoredFile(handle.getRawFile(x))
   if file.ranCheck: return file.errors
   # If not, then run the compiler to get the messages
   let (outp, _) = handle.execProcess(
@@ -243,8 +242,8 @@ proc toDiagnostics*(
     )
 
 
-proc getDiagnostics*(handle: RequestHandle, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
+proc getDiagnostics*(handle: RequestHandle, files: var FileStore, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
   ## Returns all the diagnostics for a document.
   ## Mainly just converts the stored errors into Diagnostics
-  let root = handle.parseFile(x).ast
-  handle.getErrors(x).toDiagnostics(root)
+  let root = files.parseFile(x).ast
+  handle.getErrors(files.rawGet(x), x).toDiagnostics(root)

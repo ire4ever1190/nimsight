@@ -7,6 +7,7 @@ import "$nim"/compiler/[lexer, llstream, pathutils, idents, options]
 type
   CodeActionProvider = proc (
     handle: RequestHandle,
+    files: var FileStore,
     params: CodeActionParams,
     ast: Tree,
     node: NodeIdx): seq[CodeAction]
@@ -20,10 +21,10 @@ proc registerProvider*(x: CodeActionProvider) =
   ## Registers a provider that will be queired by [getCodeActions].
   providers &= x
 
-proc getCodeActions*(h: RequestHandle, params: CodeActionParams): seq[CodeAction] =
+proc getCodeActions*(h: RequestHandle, files: var FileStore, params: CodeActionParams): seq[CodeAction] =
   ## Returns all code actions that apply to a code action request.
   # First find the node that action is referring to
-  let root = h.parseFile(params.textDocument.uri)
+  let root = files.parseFile(params.textDocument.uri)
   let node = root.ast[].findNode(params.range)
   if node.isNone:
     error "Could not find a node for this codeAction"
@@ -33,7 +34,7 @@ proc getCodeActions*(h: RequestHandle, params: CodeActionParams): seq[CodeAction
   {.gcsafe.}:
     debug "Running providers: ", len(providers)
     for provider in providers:
-      result &= provider(h, params, root.ast, node.unsafeGet())
+      result &= provider(h, files, params, root.ast, node.unsafeGet())
 
 proc newLexer(content: sink string): Lexer =
   ## Creates a new lexer for `content`

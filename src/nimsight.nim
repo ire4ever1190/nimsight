@@ -1,12 +1,13 @@
 
 import std/[strutils, json, jsonutils, options, strformat, tables, paths, files]
 
-import nimsight/sdk/[server, types, files, methods, protocol, params, logging]
+import nimsight/sdk/[server, types, methods, protocol, params, logging, utils/locks]
 import nimsight/[nimCheck, customast, codeActions, files, utils, errors]
 
 import std/[locks, os]
 
 import pkg/anano
+import pkg/threading/rwlock
 
 type
   BooleanChoice = enum
@@ -15,22 +16,44 @@ type
 
 using s: var Server
 
+var filesLock = createRwLock()
+var fileStore {.guard: filesLock.} = initFileStore(20) # TODO: Make this configurable
+
+proc updateFile(params: DidChangeTextDocumentParams) {.gcsafe.} =
+  ## Updates file cache with updates
+  let doc = params.textDocument
+  assert params.contentChanges.len == 1, "Only full updates are supported"
+  writeWith filesLock:
+    for change in params.contentChanges:
+      {.gcsafe.}:
+        fileStore.put(doc.uri, change.text, doc.version)
+
+proc updateFile*(params: DidOpenTextDocumentParams) {.gcsafe.} =
+  ## Updates file cache with an open item
+  let doc = params.textDocument
+  writeWith filesLock:
+    {.gcsafe.}:
+      fileStore.put(doc.uri, doc.text, doc.version)
+
 proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
   # Send the parser errors right away
-  let ast = handle.parseFile(uri)
-  if ast.errs.len > 0:
+  writeWith filesLock:
+    {.gcsafe.}:
+      let ast = fileStore.parseFile(uri)
+    if ast.errs.len > 0:
+      sendNotification(publishDiagnostics, PublishDiagnosticsParams(
+        uri: uri,
+        diagnostics: ast.errs.parseErrors($ uri.path, ast.ast).toDiagnostics(ast.ast)
+      ))
+
+    # Then let the other errors get sent
+    {.gcsafe.}:
+      let diagnostics = handle.getDiagnostics(fileStore, uri)
     sendNotification(publishDiagnostics, PublishDiagnosticsParams(
       uri: uri,
-      diagnostics: ast.errs.parseErrors($ uri.path, ast.ast).toDiagnostics(ast.ast)
+      diagnostics: diagnostics
     ))
-
-  # Then let the other errors get sent
-  let diagnostics = handle.getDiagnostics(uri)
-  sendNotification(publishDiagnostics, PublishDiagnosticsParams(
-    uri: uri,
-    diagnostics: diagnostics
-  ))
 
 addHandler(newLSPLogger())
 
@@ -57,27 +80,31 @@ lsp.listen[:DocumentURI, void, false](sendDiagnostics) do (h: RequestHandle, par
       raise e
 
 lsp.listen[:DidChangeTextDocumentParams, void, false](changedNotification) do (h: RequestHandle, params: DidChangeTextDocumentParams) {.gcsafe.}:
-  h.updateFile(params)
+  updateFile(params)
   h.server[].queue(sendDiagnostics.init(params.textDocument.uri))
 
 lsp.listen[:DidOpenTextDocumentParams, void, false](openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
-  h.updateFile(params)
+  updateFile(params)
   h.server[].queue(sendDiagnostics.init(params.textDocument.uri))
 
 lsp.listen[:DidSaveTextDocumentParams, void, false](savedNotification) do (h: RequestHandle, params: DidSaveTextDocumentParams) {.gcsafe.}:
   discard
 
 lsp.listen(selectionRange) do (h: RequestHandle, params: SelectionRangeParams) -> seq[SelectionRange] {.gcsafe.}:
-  let root = h.parseFile(params.textDocument.uri).ast
-  result = newSeqOfCap[SelectionRange](params.positions.len)
-  for pos in params.positions:
-    let node = root[].findNode(pos)
-    if node.isSome():
-      result &= root.toSelectionRange(node.unsafeGet())
+  writeWith filesLock:
+    {.gcsafe.}:
+      let root = fileStore.parseFile(params.textDocument.uri).ast
+    result = newSeqOfCap[SelectionRange](params.positions.len)
+    for pos in params.positions:
+      let node = root[].findNode(pos)
+      if node.isSome():
+        result &= root.toSelectionRange(node.unsafeGet())
 
 lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[CodeAction] {.gcsafe.}:
   # Find the node that the params are referring to
-  return getCodeActions(h, params)
+  writeWith filesLock:
+    {.gcsafe.}:
+      return getCodeActions(h, fileStore, params)
 
 lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionParams) -> Option[Location] {.gcsafe.}:
   let usages = h.findUsages(params.textDocument.uri, params.position)
@@ -96,7 +123,9 @@ lsp.listen(documentSymbols) do (
   h: RequestHandle,
   params: DocumentSymbolParams
 ) -> seq[DocumentSymbol] {.gcsafe.}:
-  return h.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
+  writeWith filesLock:
+    {.gcsafe.}:
+      return fileStore.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
 
 lsp.listen[:InitializedParams, void, false](initialized) do (h: RequestHandle, params: InitializedParams):
   logging.info("Client initialised")

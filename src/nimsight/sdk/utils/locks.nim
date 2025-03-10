@@ -54,3 +54,4 @@ template withLock*(c: var ConditionVar, body: untyped) =
     body
   finally:
     release c
+

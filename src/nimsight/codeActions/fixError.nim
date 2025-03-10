@@ -3,7 +3,7 @@
 {.used.}
 
 import ../sdk/[types, params, server]
-import ../[customast, nimCheck, errors]
+import ../[customast, nimCheck, errors, files]
 import ../utils/ast
 import ./utils
 import std/[strformat, options, tables, sugar]
@@ -30,6 +30,7 @@ proc createFix*(e: ParsedError, node: NodePtr, diagnotics: seq[Diagnostic]): seq
 
 proc fixError(
   handle: RequestHandle,
+  files: var FileStore,
   params: CodeActionParams,
   ast: Tree,
   node: NodeIdx): seq[CodeAction] =
@@ -38,9 +39,10 @@ proc fixError(
   # Slighly wrong with how it works, need a way to line up diagnostics
   # with the errors
 
+  let uri = params.textDocument.uri
   # Lookup the nodes for each error
   let mappedErrors = collect:
-    for error in handle.getErrors(params.textDocument.uri):
+    for error in handle.getErrors(files.rawGet(uri), uri):
       let node = ast.findNode(error.location)
       if node.isSome():
         (error, ast.getPtr(node.unsafeGet()))

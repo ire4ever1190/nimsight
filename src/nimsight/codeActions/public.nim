@@ -4,7 +4,7 @@
 
 import "$nim"/compiler/ast
 import ../sdk/[types, params, server]
-import ../customast
+import ../[customast, files]
 import ../utils/ast
 import ./utils
 import std/[strformat, options, tables, sugar, logging]
@@ -23,6 +23,7 @@ proc getObjectIdents(x: TreeView, idx: NodeIdx, idents: var seq[NodeIdx]) =
 
 proc makeFieldsPublic*(
   handle: RequestHandle,
+  files: var FileStore,
   params: CodeActionParams,
   ast: Tree,
   node: NodeIdx): seq[CodeAction] =

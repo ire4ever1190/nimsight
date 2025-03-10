@@ -3,7 +3,7 @@
 
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os]
 
-import types, protocol, hooks, params, ./logging, ./files, methods
+import types, protocol, hooks, params, ./logging, methods
 
 import utils
 
@@ -40,8 +40,6 @@ type
       ## Table of request ID to whether they have been cancelled or not.
       ## i.e. if the value is false, then the request has been cancelled by the server.
       ## It is the request handlers just to check this on a regular basis.
-    files*: ProtectedVar[FileStore, RwLock]
-      ## Stores all the files in use by the server
     running: Atomic[bool]
       ## Tracks if the server is shutting down or not
     roots*: seq[Path]
@@ -220,29 +218,6 @@ proc updateRequestRunning(s: var Server, id: string, val: bool) =
   writeWith s.inProgressLock:
     s.inProgress[id] = val
 
-proc updateFile(s: var Server, params: DidChangeTextDocumentParams) =
-  ## Updates file cache with updates
-  let doc = params.textDocument
-  assert params.contentChanges.len == 1, "Only full updates are supported"
-  discard s.files.write()
-  for change in params.contentChanges:
-    s.files.unsafeGet().put(doc.uri, change.text, doc.version)
-
-proc updateFile*(s: var Server, params: DidOpenTextDocumentParams) =
-  ## Updates file cache with an open item
-  let doc = params.textDocument
-  s.files.write().value[].put(doc.uri, doc.text, doc.version)
-
-proc updateFile*[T](h: RequestHandle, params: T) =
-  h.server[].updateFile(params)
-
-proc getRawFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): BasicFile =
-  var (files, _) = h.server[].files.read()
-  return files.rawGet(uri, version)
-
-proc getFile*(h: RequestHandle, uri: DocumentURI, version = NoVersion): string =
-  h.getRawFile(uri, version).content
-
 proc workerThread(server: ptr Server) {.thread.} =
   ## Initialises a worker thread and then handles messages
   ## Implemented via a work stealing message queue
@@ -370,10 +345,6 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     inProgressLock: createRwLock(),
     version: version,
     queue: newChan[Message](),
-    files: initProtectedVar(
-      initFileStore(20), # TODO: Make this configurable
-      createRwLock()
-    )
   )
   result.running.store(true)
 
