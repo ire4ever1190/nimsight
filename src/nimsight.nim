@@ -6,7 +6,6 @@ import nimsight/[nimCheck, customast, codeActions, files, utils, errors]
 
 import std/[locks, os]
 
-import pkg/anano
 import pkg/threading/rwlock
 
 type

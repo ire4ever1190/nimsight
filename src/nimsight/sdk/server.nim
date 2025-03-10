@@ -8,9 +8,7 @@ import types, protocol, hooks, params, ./logging, methods
 import utils
 
 import threading/[channels, rwlock]
-
-import pkg/anano
-
+#
 type
   Handler* = proc (handle: RequestHandle, x: JsonNode): Option[JsonNode] {.gcsafe.}
     ## Handler for a method. Uses JsonNode to perform type elision,
@@ -113,7 +111,7 @@ proc sendRecvMessage[P, R](
   params: P
 ): R =
   ## Sends a message to the client, and then blocks until it reads a response
-  let id = sendRequestMessage(
+  let id = $sendRequestMessage(
     meth,
     params
   )
@@ -216,7 +214,7 @@ proc params(x: Message): JsonNode =
 proc updateRequestRunning(s: var Server, id: string, val: bool) =
   ## Updates the request running statusmi
   writeWith s.inProgressLock:
-    s.inProgress[id] = val
+    s.inProgress[$id] = val
 
 proc workerThread(server: ptr Server) {.thread.} =
   ## Initialises a worker thread and then handles messages
@@ -234,7 +232,7 @@ proc workerThread(server: ptr Server) {.thread.} =
     # We are only reading this so it should be fine right??
     if request of ResponseMessage:
       let resp = ResponseMessage(request)
-      server[].results.put(resp.id.getStr(), resp.`result`.unsafeGet)
+      server[].results.put(resp.id.str, resp.`result`.unsafeGet)
       continue
 
     if request.meth in server[].listeners:

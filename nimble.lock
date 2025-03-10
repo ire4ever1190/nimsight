@@ -1,16 +1,6 @@
 {
   "version": 2,
   "packages": {
-    "anano": {
-      "version": "0.2.1",
-      "vcsRevision": "2534c8fc60f463fd7f9573ce235c0c07f632af45",
-      "url": "https://github.com/ire4ever1190/anano",
-      "downloadMethod": "git",
-      "dependencies": [],
-      "checksums": {
-        "sha1": "bc5242cbfd4feb63779f33d6d433d0a65b7dca75"
-      }
-    },
     "results": {
       "version": "0.5.0",
       "vcsRevision": "57b2392ad69849e3e2d02b74a8a0feee2c3d9570",

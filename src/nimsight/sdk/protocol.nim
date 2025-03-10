@@ -1,10 +1,8 @@
 ## Handles communication between the client/server
-import std/[json, jsonutils, options, strscans, strutils, strformat, locks]
+import std/[json, jsonutils, options, strscans, strutils, strformat, locks, atomics, logging, sequtils]
 
 
 import types, hooks, methods, utils
-
-import pkg/anano
 
 proc readPayload*(): JsonNode =
   ## Reads the JSON body that the client has sent
@@ -77,7 +75,8 @@ proc writeResponse(respBody: string) =
 proc sendPayload[T](payload: sink T) {.gcsafe.} =
   {.gcsafe.}:
     let resp = payload.toJson()
-
+  if resp.keys().toSeq().len == 1:
+    raise (ref ValueError)(msg: "Payload incorrectly serialised")
   let respBody = $resp
   respBody.writeResponse()
 
@@ -95,10 +94,10 @@ proc respond*(request: Message, payload: sink JsonNode) =
   ## Responds to a request with a result
   sendPayload(ResponseMessage(id: request.id, `result`: some payload))
 
-proc send*[T: Message](msg: sink T) =
+proc send*[T: Message](msg: T) =
   ## Sends a message to the client
-  # TODO: Some kind of ID generation to match up responses
-  sendPayload(msg)
+  # Need to make sure we are serialising the correct type
+  msg.sendPayload()
 
 proc sendNotification*[P](meth: RPCNotification[P], payload: P) {.gcsafe.} =
   {.gcsafe.}:
@@ -109,10 +108,21 @@ proc sendNotification*[P](meth: RPCNotification[P], payload: P) {.gcsafe.} =
       )
     )
 
-proc sendRequestMessage*[P, R](msg: RPCMethod[P, R], payload: P): string {.gcsafe.} =
+var requestID: Atomic[int]
+  ## Global counter for request ID since most implementations only support integers
+
+proc nextRequestID*(): int {.gcsafe.} =
+  ## Generates a request ID to use
+  {.gcsafe.}:
+    result = requestID.load()
+    atomicINc(requestID)
+  debug(fmt"Generating ID {result}: \n{getStacktrace()}")
+
+
+proc sendRequestMessage*[P, R](msg: RPCMethod[P, R], payload: P): int {.gcsafe.} =
   ## Sends a request message. Returns the ID which can be used to listen out
   ## for the response
-  result = $genNanoID()
+  result = nextRequestID()
   {.gcsafe.}:
     send(
       RequestMessage(

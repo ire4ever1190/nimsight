@@ -25,20 +25,20 @@ proc defMethod[P, R](meth: string): RPCMethod[P, R] =
   ## Defines a new method
   result.meth = meth
 
-proc init*[P: not void, R, N](msg: RPCMessage[P, R, N], params: P): Message =
+proc init*[P: not void, R, N](msg: RPCMessage[P, R, N], params: P): auto =
   ## Constructs a message for `msg`
   when N:
     NotificationMessage(`method`: msg.meth, params: some params.toJson())
   else:
-    let id = $genNanoID()
+    let id = nextRequestID()
     result = RequestMessage(`method`: msg.meth, params: params.toJson(), id: some id.toJson())
 
-proc init*[R, N](msg: RPCMessage[void, R, N]): Message =
+proc init*[R, N](msg: RPCMessage[void, R, N]): auto =
   ## Constructs a message. Specialisation that doesn't take parameters
   when N:
     NotificationMessage(`method`: msg.meth, params: none(JsonNode))
   else:
-    let id = $genNanoID()
+    let id = nextRequestID()
     result = RequestMessage(`method`: msg.meth, params: newJNull(), id: some id.toJson())
 
 
