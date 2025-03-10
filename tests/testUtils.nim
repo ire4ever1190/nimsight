@@ -1,4 +1,5 @@
 import nimsight/utils
+import nimsight/sdk/utils
 import nimsight/codeActions/utils
 
 import std/[unittest, json, jsonutils]
