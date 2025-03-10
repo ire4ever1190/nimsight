@@ -27,9 +27,9 @@ jobs:
     - name: Install NeoVim
       run: |
         # Install from source so its the latest version
-        curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz
-        sudo tar -C /opt -xzf nvim-linux64.tar.gz
-        echo "/opt/nvim-linux64/bin" >> $GITHUB_PATH
+        curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
+        sudo tar -C /opt -xzf nvim-linux-x86_64.tar.gz
+        echo "/opt/nvim-linux-x86_64/bin" >> $GITHUB_PATH
 
     - name: Build
       run: nimble update && nimble build -d:ci
