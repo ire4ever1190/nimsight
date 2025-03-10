@@ -75,8 +75,6 @@ proc writeResponse(respBody: string) =
 proc sendPayload[T](payload: sink T) {.gcsafe.} =
   {.gcsafe.}:
     let resp = payload.toJson()
-  if resp.keys().toSeq().len == 1:
-    raise (ref ValueError)(msg: "Payload incorrectly serialised")
   let respBody = $resp
   respBody.writeResponse()
 

@@ -241,7 +241,7 @@ proc workerThread(server: ptr Server) {.thread.} =
         handle = initHandle(id, server)
       try:
         let returnVal = handler(handle, request.params)
-        if returnVal.isSome():
+        if returnVal.isSome() and id.isSome():
           request.respond(returnVal.unsafeGet())
       except ServerError as e:
         debug("Failed: ", e.msg)
