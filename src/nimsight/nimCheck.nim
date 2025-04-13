@@ -23,7 +23,7 @@ func isNimscript(file: DocumentURI): bool =
 
 func makeOptions(file: DocumentURI): seq[string] =
   ## Returns a list of options that should be applied to a file type
-  result = @[]
+  result = @[fmt"--stdinfile:{file}"]
   if file.isNimscript:
     result &= ["--include:system/nimscript"]
 
