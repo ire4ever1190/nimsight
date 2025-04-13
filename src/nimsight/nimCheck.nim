@@ -203,7 +203,7 @@ proc getErrors*(handle: RequestHandle, file: NimFile, x: DocumentUri): seq[Parse
 
   for chunk in outp.msgChunks:
     # TODO: Check paths, think other errors are invading
-    result &= chunk.parseError($x.path)
+    result &= chunk.parseError()
 
   # Store the errors in the cache
   file.errors = result

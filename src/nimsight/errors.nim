@@ -119,10 +119,7 @@ func toDiagnosticSeverity(x: sink string): DiagnosticSeverity =
     # Spec mentions to interpret as Error if missing
     DiagnosticSeverity.Error
 
-template fixFile(x: string): string =
-  if x == "stdinfile.nim": stdinFile else: x
-
-proc readError*(msg: string, stdinFile=""): ParsedError {.gcsafe.} =
+proc readError*(msg: string): ParsedError {.gcsafe.} =
   ## Parses an error line into a basic structure.
   ## Doesn't fully parse the message
   var matches = default(array[5, string])
@@ -131,7 +128,7 @@ proc readError*(msg: string, stdinFile=""): ParsedError {.gcsafe.} =
 
   # Parse values from the matches
   let
-    file = matches[0].fixFile()
+    file = matches[0]
     line = matches[1].parseUInt()
     col = matches[2].parseUInt()
     lvl = matches[3].toDiagnosticSeverity()
@@ -140,7 +137,7 @@ proc readError*(msg: string, stdinFile=""): ParsedError {.gcsafe.} =
   # Construct a basic ParsedError
   result = ParsedError(
     location: NimLocation(
-      file: file.fixFile(),
+      file: file,
       line: line,
       col: col
     ),
@@ -164,11 +161,9 @@ proc parseErrors*(errors: openArray[ParserError], file: string, ast: Tree): seq[
       )
     )
 
-proc parseError*(msg: string, stdinFile = ""): ParsedError =
+proc parseError*(msg: string): ParsedError =
   ## Given a full error message, it returns a parsed error.
   ## "full errror message" meaning it handles a full block separated by UnitSep (See --unitsep in Nim).
-  ##
-  ## - `stdinFile`: File to replace the stdin file with for better error messages
 
   # Parse out information from the error message.
   # All 'generic/template instantiation' messages come before the actual message
@@ -182,7 +177,7 @@ proc parseError*(msg: string, stdinFile = ""): ParsedError =
     error = lines[^1]
     instantiations = lines[0 ..< ^1]
 
-  result = readError(error, stdinFile)
+  result = readError(error)
 
   # Add the instanitations as related information
   for inst in instantiations:
@@ -192,7 +187,7 @@ proc parseError*(msg: string, stdinFile = ""): ParsedError =
     result.relatedInfo &= RelatedInfo(
       msg: matches[3],
       location: NimLocation(
-        file: matches[0].fixFile(),
+        file: matches[0],
         line: matches[1].parseUInt(),
         col: matches[2].parseUint()
       )
@@ -221,7 +216,7 @@ proc parseError*(msg: string, stdinFile = ""): ParsedError =
     # Add the calls as related information
     for line in calls.splitLines():
       if line.isEmptyOrWhitespace(): continue
-      let err = line.strip(chars = {'>'} + Whitespace).readError(stdinFile)
+      let err = line.strip(chars = {'>'} + Whitespace).readError()
       result.relatedInfo &= RelatedInfo(
         msg: err.msg,
         location: err.location
