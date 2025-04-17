@@ -23,7 +23,7 @@ func isNimscript(file: DocumentURI): bool =
 
 func makeOptions(file: DocumentURI): seq[string] =
   ## Returns a list of options that should be applied to a file type
-  result = @[fmt"--stdinfile:{file}"]
+  result = @[fmt"--stdinfile:{file.path}"]
   if file.isNimscript:
     result &= ["--include:system/nimscript"]
 
@@ -68,9 +68,11 @@ func toSymbolKind(x: NodePtr): SymbolKind =
     of nkConstSection:
       Constant
     else: Variable
+  of nkPostFix:
+    return x[0].toSymbolKind()
   else:
     {.cast(noSideEffect).}:
-      debug "Kind ", x[].kind
+      warn "Cant get symbol for ", x[].kind
     # Likely not good enough
     Variable
 
@@ -145,6 +147,8 @@ proc execProcess*(handle: RequestHandle, cmd: string, args: openArray[string], i
   ## Runs a process, automatically checks if the request has ended and then stops the running process.
   # Don't start a process if the handle is already cancelled
   if not handle.isRunning(): raiseCancelled()
+
+  debug(fmt"Running `{cmd}` with args {args} in '{workingDir}'")
 
   let process = startProcess(
     cmd,
