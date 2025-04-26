@@ -101,6 +101,10 @@ test "Can get diagnostics":
   # we point to
   check "Make sure the test works" notin output
 
+test "Errors don't leak across files":
+  let output = nvimTest("errorsLeak")
+  check "strutils" notin output
+
 suite "Code actions":
   test "Function rename":
     discard nvimTest("codeAction")
