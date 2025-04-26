@@ -126,7 +126,7 @@ proc readError*(msg: string): ParsedError {.gcsafe.} =
 
   # Parse values from the matches
   let
-    file = matches[0]
+    file = matches[0].strip() # Lines after first error start with newline, easier to fix here
     line = matches[1].parseUInt()
     col = matches[2].parseUInt()
     lvl = matches[3].toDiagnosticSeverity()

@@ -103,7 +103,7 @@ test "Can get diagnostics":
 
 test "Errors don't leak across files":
   let output = nvimTest("errorsLeak")
-  check "strutils" notin output
+  check "<NO ERRORS FOUND>" in output
 
 suite "Code actions":
   test "Function rename":
