@@ -224,7 +224,6 @@ proc toDiagnostics*(
   for err in errors:
     # Convert from basic line info into extended line info (i.e. full range from AST)
     let range = root.toRange(err.location)
-    debug range
     if range.isNone: continue
 
     # Convert relevant information

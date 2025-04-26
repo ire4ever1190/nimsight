@@ -103,7 +103,7 @@ proc toLocation*(ast: Tree, loc: NimLocation): Option[Location] =
   let range = ast.toRange(loc)
   if range.isSome:
     return some Location(
-        uri: initDocumentURI($loc.file),
+        uri: initDocumentURI(loc.file),
         range: range.unsafeGet()
     )
 
