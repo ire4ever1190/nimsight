@@ -23,7 +23,7 @@ func isNimscript(file: DocumentURI): bool =
 
 func makeOptions(file: DocumentURI): seq[string] =
   ## Returns a list of options that should be applied to a file type
-  result = @[]
+  result = @[fmt"--stdinfile:{file.path}"]
   if file.isNimscript:
     result &= ["--include:system/nimscript"]
 
@@ -68,9 +68,11 @@ func toSymbolKind(x: NodePtr): SymbolKind =
     of nkConstSection:
       Constant
     else: Variable
+  of nkPostFix:
+    return x[0].toSymbolKind()
   else:
     {.cast(noSideEffect).}:
-      debug "Kind ", x[].kind
+      warn "Cant get symbol for ", x[].kind
     # Likely not good enough
     Variable
 
@@ -146,6 +148,8 @@ proc execProcess*(handle: RequestHandle, cmd: string, args: openArray[string], i
   # Don't start a process if the handle is already cancelled
   if not handle.isRunning(): raiseCancelled()
 
+  debug(fmt"Running `{cmd}` with args {args} in '{workingDir}'")
+
   let process = startProcess(
     cmd,
     args=args,
@@ -203,7 +207,7 @@ proc getErrors*(handle: RequestHandle, file: NimFile, x: DocumentUri): seq[Parse
 
   for chunk in outp.msgChunks:
     # TODO: Check paths, think other errors are invading
-    result &= chunk.parseError($x.path)
+    result &= chunk.parseError()
 
   # Store the errors in the cache
   file.errors = result

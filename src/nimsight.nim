@@ -2,7 +2,7 @@
 import std/[strutils, json, jsonutils, options, strformat, tables, paths, files]
 
 import nimsight/sdk/[server, types, methods, protocol, params, logging]
-import nimsight/[nimCheck, customast, codeActions, files, utils, errors]
+import nimsight/[nimCheck, customast, codeActions, files, utils]
 
 import std/[locks, os]
 
@@ -36,17 +36,7 @@ proc updateFile*(params: DidOpenTextDocumentParams) {.gcsafe.} =
 
 proc checkFile(handle: RequestHandle, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
-  # Send the parser errors right away
   writeWith filesLock:
-    {.gcsafe.}:
-      let ast = fileStore.parseFile(uri)
-    if ast.errs.len > 0:
-      sendNotification(publishDiagnostics, PublishDiagnosticsParams(
-        uri: uri,
-        diagnostics: ast.errs.parseErrors($ uri.path, ast.ast).toDiagnostics(ast.ast)
-      ))
-
-    # Then let the other errors get sent
     {.gcsafe.}:
       let diagnostics = handle.getDiagnostics(fileStore, uri)
     sendNotification(publishDiagnostics, PublishDiagnosticsParams(
