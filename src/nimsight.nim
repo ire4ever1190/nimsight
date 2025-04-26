@@ -2,7 +2,7 @@
 import std/[strutils, json, jsonutils, options, strformat, tables, paths, files]
 
 import nimsight/sdk/[server, types, methods, protocol, params, logging]
-import nimsight/[nimCheck, customast, codeActions, files, utils, errors]
+import nimsight/[nimCheck, customast, codeActions, files, utils]
 
 import std/[locks, os]
 
