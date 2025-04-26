@@ -205,9 +205,11 @@ proc getErrors*(handle: RequestHandle, file: NimFile, x: DocumentUri): seq[Parse
     workingDir = $x.path.parentDir()
   )
 
-  for chunk in outp.msgChunks:
-    # TODO: Check paths, think other errors are invading
-    result &= chunk.parseError()
+  result = collect:
+    for chunk in outp.msgChunks:
+      let err = chunk.parseError()
+      if err.location.file == x.path:
+        err
 
   # Store the errors in the cache
   file.errors = result

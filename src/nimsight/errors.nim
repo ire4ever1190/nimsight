@@ -1,4 +1,4 @@
-import std/[pegs, strutils, sugar, strformat, options]
+import std/[pegs, strutils, sugar, strformat, options, paths]
 
 import customast
 
@@ -25,7 +25,7 @@ type
 
   NimLocation = object
     ## Location, but lines are in Nim format (1 indexed for lines/columns)
-    file*: string
+    file*: Path
     line*, col*: uint
 
   RelatedInfo* = object
@@ -126,7 +126,7 @@ proc readError*(msg: string): ParsedError {.gcsafe.} =
 
   # Parse values from the matches
   let
-    file = matches[0]
+    file = matches[0].strip() # Lines after first error start with newline, easier to fix here
     line = matches[1].parseUInt()
     col = matches[2].parseUInt()
     lvl = matches[3].toDiagnosticSeverity()
@@ -135,7 +135,7 @@ proc readError*(msg: string): ParsedError {.gcsafe.} =
   # Construct a basic ParsedError
   result = ParsedError(
     location: NimLocation(
-      file: file,
+      file: Path(file),
       line: line,
       col: col
     ),
@@ -143,21 +143,6 @@ proc readError*(msg: string): ParsedError {.gcsafe.} =
     severity: lvl,
     kind: Any
   )
-
-proc parseErrors*(errors: openArray[ParserError], file: string, ast: Tree): seq[ParsedError] =
-  ## Converts errors from the parser into [ParsedError].
-  ## Attempts to map errors to nodes so proper info can be given
-  for error in errors:
-    result &= ParsedError(
-      msg: error.arg,
-      severity: Error,
-      kind: Any,
-      location: NimLocation(
-        file: file,
-        line: error.info.line,
-        col: error.info.col.uint + 1
-      )
-    )
 
 proc parseError*(msg: string): ParsedError =
   ## Given a full error message, it returns a parsed error.
@@ -185,7 +170,7 @@ proc parseError*(msg: string): ParsedError =
     result.relatedInfo &= RelatedInfo(
       msg: matches[3],
       location: NimLocation(
-        file: matches[0],
+        file: Path(matches[0]),
         line: matches[1].parseUInt(),
         col: matches[2].parseUint()
       )
