@@ -6,9 +6,7 @@ import sdk/types
 
 import utils/[stringMatch]
 
-import std/[macros, strscans]
-
-import "$nim"/compiler/ast
+import std/strscans
 
 type
   ErrorKind* = enum
