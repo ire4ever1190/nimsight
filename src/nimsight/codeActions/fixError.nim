@@ -21,7 +21,7 @@ proc createFix*(e: ParsedError, node: NodePtr, diagnotics: seq[Diagnostic]): seq
         kind: some QuickFix,
         edit: some WorkspaceEdit(
             changes: some toTable({
-              DocumentURI("file://" & e.location.file): @[node.editWith(newIdentNode(option))]
+              e.location.file.initDocumentURI(): @[node.editWith(newIdentNode(option))]
             })
           )
       )

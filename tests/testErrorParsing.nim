@@ -1,6 +1,6 @@
 ## Tests for parsing error messages
 
-import std/[unittest, osproc, os, strformat, strutils, sequtils]
+import std/[unittest, osproc, os, strformat, strutils, sequtils, paths]
 
 import nimsight/[errors {.all.}, customast]
 
@@ -21,7 +21,7 @@ candidates (edit distance, scope distance); see '--spellSuggest':
  (1, 1): 'world'
 """
     let err = msg.parseError()
-    check err.location.file == "file.nim"
+    check err.location.file == Path"file.nim"
     check err.location.line == 16
     check err.location.col == 6
     check err.msg == "Undeclared identifier: 'worl'"
@@ -38,10 +38,10 @@ file.nim(3, 4) template/generic instantiation of `foo` from here
 file.nim(2, 10) Error: test"""
   let err = msg.parseError()
   check err.msg == "test"
-  check err.location == NimLocation(file: "file.nim", line: 2, col: 10)
+  check err.location == NimLocation(file: Path"file.nim", line: 2, col: 10)
   check err.relatedInfo == @[
     RelatedInfo(
-      location: NimLocation(file: "file.nim", line: 3, col: 4),
+      location: NimLocation(file: Path"file.nim", line: 3, col: 4),
       msg: "template/generic instantiation of `foo` from here"
     )
   ]

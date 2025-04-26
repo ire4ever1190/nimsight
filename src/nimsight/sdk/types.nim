@@ -1,4 +1,4 @@
-import std/[options, json, tables, hashes, paths, strutils]
+import std/[options, json, tables, hashes, paths, strutils, strformat]
 
 import utils/union
 
@@ -426,8 +426,10 @@ func path*(x: DocumentURI): Path =
     ## Converts to a path
     result = x.string.replace("file://", "").Path
 
-func initDocumentURI*(x: string): DocumentURI =
-  DocumentURI("file://" & x)
+func initDocumentURI*(path: Path): DocumentURI =
+  DocumentURI(fmt"file://{path}")
+
+func initDocumentURI*(x: string): DocumentURI = initDocumentURI(Path(x))
 
 proc initPos*(line: SomeInteger, col: SomeInteger): Position =
   ## Creates a position from a line/col that is 1 indexed
