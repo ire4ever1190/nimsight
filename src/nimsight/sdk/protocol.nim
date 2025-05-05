@@ -1,5 +1,5 @@
 ## Handles communication between the client/server
-import std/[json, jsonutils, options, strscans, strutils, strformat, locks, atomics, logging]
+import std/[json, jsonutils, options, strscans, strutils, strformat, locks, atomics]
 
 
 import types, hooks, methods, utils
