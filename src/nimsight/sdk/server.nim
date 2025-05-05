@@ -233,7 +233,7 @@ proc workerThread(server: ptr Server) {.thread.} =
     # We are only reading this so it should be fine right??
     if request of ResponseMessage:
       let resp = ResponseMessage(request)
-      server[].results.put(resp.id.str, resp.`result`.unsafeGet)
+      server[].results.put($resp.id, resp.`result`.unsafeGet)
       continue
 
     if request.meth in server[].listeners:
