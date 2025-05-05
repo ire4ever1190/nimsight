@@ -113,8 +113,7 @@ proc nextRequestID*(): int {.gcsafe.} =
   ## Generates a request ID to use
   {.gcsafe.}:
     result = requestID.load()
-    atomicINc(requestID)
-  debug(fmt"Generating ID {result}: \n{getStacktrace()}")
+    atomicInc(requestID)
 
 
 proc sendRequestMessage*[P, R](msg: RPCMethod[P, R], payload: P): int {.gcsafe.} =
