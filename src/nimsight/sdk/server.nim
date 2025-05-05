@@ -189,7 +189,7 @@ proc listen*[P, R, N](server: var Server, msg: RPCMessage[P, R, N], handler: Lis
     except ServerError:
       # Bubble it up, will be handled later
       raise
-    except CatchableError as e:
+    except Exception as e:
       let entries = collect:
         for entry in e.getStacktraceEntries():
          fmt"{entry.filename}:{entry.line} {entry.procName}"
