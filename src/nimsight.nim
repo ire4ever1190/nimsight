@@ -21,7 +21,7 @@ var fileStore {.guard: filesLock.} = initFileStore(20) # TODO: Make this configu
 proc updateFile(params: DidChangeTextDocumentParams) {.gcsafe.} =
   ## Updates file cache with updates
   let doc = params.textDocument
-  assert params.contentChanges.len == 1, "Only full updates are supported"
+  assert params.contentChanges.len <= 1, "Only full updates are supported"
   writeWith filesLock:
     for change in params.contentChanges:
       {.gcsafe.}:
@@ -126,6 +126,7 @@ lsp.listen[:InitializedParams, void, false](initialized) do (h: RequestHandle, p
     let
       pathsFile = root/"nimble.paths"
       lockFile = root/"nimble.lock"
+    debug fmt"Checking {root} for nimble initialisation"
     if fileExists(lockFile) and not fileExists(pathsFile):
       let msg = """
         Nimble doesn't seem to be initialised. This can cause problems with checking

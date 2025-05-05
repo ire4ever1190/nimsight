@@ -45,7 +45,7 @@ func toSymbolKind(x: NodePtr): SymbolKind =
   case x[].kind
   of nkEnumFieldDef:
     EnumMember
-  of nkFuncDef, nkProcDef, nkMacroDef, nkTemplateDef, nkIteratorDef:
+  of nkFuncDef, nkProcDef, nkMacroDef, nkTemplateDef, nkIteratorDef, nkProcTy, nkIteratorTy:
     Function
   of nkMethodDef:
     Method

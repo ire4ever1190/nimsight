@@ -173,6 +173,7 @@ proc listen*[P, R, N](server: var Server, msg: RPCMessage[P, R, N], handler: Lis
     let data = try:
         x.jsonTo(P, JOptions(allowMissingKeys: true, allowExtraKeys: true))
       except CatchableError as e:
+        error fmt"Got invalid JSON for {$P}: {x}"
         raise (ref ServerError)(code: InvalidParams, msg: e.msg, data: x)
     try:
       when R is not void:
