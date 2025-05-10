@@ -11,7 +11,7 @@ type
 func toMessageType(level: Level): MessageType =
   ## Converts between LSP message level and Nim level
   const mapping: array[lvlDebug..lvlFatal, MessageType] = [
-    lvlDebug: Debug,
+    lvlDebug: Log,
     lvlInfo: Info,
     lvlNotice: Info,
     lvlWarn: Warning,

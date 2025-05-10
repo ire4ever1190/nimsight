@@ -173,6 +173,7 @@ proc listen*[P, R, N](server: var Server, msg: RPCMessage[P, R, N], handler: Lis
     let data = try:
         x.jsonTo(P, JOptions(allowMissingKeys: true, allowExtraKeys: true))
       except CatchableError as e:
+        error fmt"Got invalid JSON for {$P}: {x}"
         raise (ref ServerError)(code: InvalidParams, msg: e.msg, data: x)
     try:
       when R is not void:
@@ -188,7 +189,7 @@ proc listen*[P, R, N](server: var Server, msg: RPCMessage[P, R, N], handler: Lis
     except ServerError:
       # Bubble it up, will be handled later
       raise
-    except CatchableError as e:
+    except Exception as e:
       let entries = collect:
         for entry in e.getStacktraceEntries():
          fmt"{entry.filename}:{entry.line} {entry.procName}"
@@ -232,7 +233,7 @@ proc workerThread(server: ptr Server) {.thread.} =
     # We are only reading this so it should be fine right??
     if request of ResponseMessage:
       let resp = ResponseMessage(request)
-      server[].results.put(resp.id.str, resp.`result`.unsafeGet)
+      server[].results.put($resp.id, resp.`result`.unsafeGet)
       continue
 
     if request.meth in server[].listeners:
