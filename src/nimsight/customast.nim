@@ -1,11 +1,11 @@
 ## Custom AST that is flat instead of a tree. Haven't benchmarked but it probably faster to traverse
 ## compared to the normal AST. Supports getting the parent of a node.
-## Implements the [customast](https://github.com/nim-lang/Nim/blob/devel/compiler/plugins/customast.nim) API
-## to avoid needing to traverse the old tree to generate this
+# TODO: Implement the [customast](https://github.com/nim-lang/Nim/blob/devel/compiler/plugins/customast.nim) API
+#       to avoid needing to traverse the old tree to generate this
 
 import "$nim"/compiler/[ast, parser, syntaxes, options, msgs, idents, pathutils, lineinfos, llstream, renderer]
 
-import std/[sequtils, options, strformat]
+impot std/[sequtils, options, strformat]
 
 import sdk/types
 

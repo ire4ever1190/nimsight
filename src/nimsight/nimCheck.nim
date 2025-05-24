@@ -40,42 +40,6 @@ proc exploreAST*(x: NodePtr, filter: proc (x: NodePtr): bool,
 proc ofKind(x: set[TNodeKind]): (proc (x: NodePtr): bool) =
   proc (node: NodePtr): bool = node[].kind in x
 
-func toSymbolKind(x: NodePtr): SymbolKind =
-  ## Converts from Nim NodeKind into LSP SymbolKind
-  case x[].kind
-  of nkEnumFieldDef:
-    EnumMember
-  of nkFuncDef, nkProcDef, nkMacroDef, nkTemplateDef, nkIteratorDef, nkProcTy, nkIteratorTy:
-    Function
-  of nkMethodDef:
-    Method
-  of nkTypeClassTy:
-    Interface
-  of nkRefTy, nkObjectTy: # Not correct! nkRef could just be a type alias not an obkect
-    Object
-  of nkEnumTy:
-    Enum
-  of nkTypeDef:
-   x[2].toSymbolKind()
-  of nkIdent:
-    # Depending on the parent, we change the type
-    let parent = x.parent({nkIdentDefs, nkConstDef})
-    case parent.kind
-    of nkObjectTy:
-      Field
-    of nkEnumTy:
-      EnumMember
-    of nkConstSection:
-      Constant
-    else: Variable
-  of nkPostFix:
-    return x[0].toSymbolKind()
-  else:
-    {.cast(noSideEffect).}:
-      warn "Cant get symbol for ", x[].kind
-    # Likely not good enough
-    Variable
-
 proc toDocumentSymbol(x: NodePtr, kind = x.toSymbolKind()): DocumentSymbol =
   DocumentSymbol(
     name: x.name,

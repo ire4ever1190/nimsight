@@ -18,6 +18,8 @@ This is the list of features that are supported/will eventually be supported
 - [x] Show outline of document
 - [x] Basic fixes for some errors
 - [x] Nimble and nimscript files
+- [x] Outline selection
+- [ ] Workspace symbol search
 - [ ] Go-to symbol definition (The code is there, but it basically never works)
 - [ ] Find usages
 - [ ] Rename symbol
