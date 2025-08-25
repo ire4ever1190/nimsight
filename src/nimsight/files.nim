@@ -8,6 +8,7 @@ import errors, customast
 # TODO: Use streams instead so that we can support None sync by passing direct file stream. (Past me what the fuck is this comment)
 
 import pkg/minilru
+export minilru
 
 import std/[strformat, options]
 
