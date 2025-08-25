@@ -358,6 +358,7 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
           openClose: true,
           change: Full
         )),
+        definitionProvider: true,
         selectionRangeProvider: true
       ),
       serverInfo: ServerInfo(

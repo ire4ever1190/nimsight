@@ -144,6 +144,16 @@ register_cmd("Diag", function (opts)
   end
 end, { })
 
+-- Prints the location the code will jump to
+register_cmd("Def", function (opts)
+  local args = vim.lsp.util.make_position_params()
+  vim.lsp.buf_request_all(0, "textDocument/definition", args, function (result)
+    local range = result[1].result.range
+    println(string.format("%s:%s %s:%s", range.start.line, range.start.character, range["end"].line, range["end"].character))
+    coroutine.resume(cmds, "textDocument/definition")
+  end)
+end, { })
+
 -- Applies a code action
 register_cmd("CodeAction", function (opts)
   local pos = vim.api.nvim_win_get_cursor(0)

@@ -96,17 +96,28 @@ lsp.listen(codeAction) do (h: RequestHandle, params: CodeActionParams) -> seq[Co
       return getCodeActions(h, fileStore, params)
 
 lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionParams) -> Option[Location] {.gcsafe.}:
-  let usages = h.findUsages(params.textDocument.uri, params.position)
-  if usages.isSome():
-    let usages = usages.unsafeGet()
-    return some Location(
-      uri: DocumentURI("file://" & usages.def[0]),
-      range: Range(
-        start: usages.def[1],
-        `end`: Position(line: usages.def[1].line, character: usages.def[1].character + 1)
-      )
-    )
+  # See if we can find a unique symbol in the outline
+  writeWith filesLock:
+    {.gcsafe.}:
+      # Build AST and find the node the user is pointing at
+      let document = fileStore.parseFile(params.textDocument.uri).ast
+      let nodeUnder = document[].findNode(params.position)
+      if nodeUnder.isNone(): return none(Location)
 
+      # Check if the node is an identifier
+      let foundNode = document[nodeUnder.unsafeGet()]
+      if foundNode.kind != nkIdent: return none(Location)
+
+      let targetName = foundNode.strVal.nimIdentNormalize()
+
+      # Now search the outline, and return the first match
+      let outline = document.getPtr(NodeIdx(0)).outLineDocument()
+      for symbol in outline:
+        if symbol.name.nimIdentNormalize() == targetName:
+          return some Location(
+            uri: params.textDocument.uri,
+            range: symbol.selectionRange
+          )
 
 lsp.listen(documentSymbols) do (
   h: RequestHandle,

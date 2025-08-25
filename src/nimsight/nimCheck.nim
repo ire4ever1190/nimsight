@@ -1,5 +1,5 @@
 ## Utils for working with Nim check
-import std/[osproc, strformat, strscans, strutils, options, sugar, os, streams, paths, logging]
+import std/[osproc, strformat, options, sugar, os, streams, paths, logging]
 
 import sdk/[types, hooks, server, params]
 
@@ -172,26 +172,6 @@ proc execProcess*(handle: RequestHandle, cmd: string, args: openArray[string], i
     discard process.waitForExit()
     raiseCancelled()
   return (process.outputStream().readAll(), process.peekExitCode())
-
-proc findUsages*(handle: RequestHandle, file: DocumentURI, pos: Position): Option[SymbolUsage] =
-  ## Uses --defusages to find symbol usage/defintion
-  ## Uses IC so isn't braindead slow which is cool, but zero clue
-  ## what stability is like lol
-  # Use refc to get around https://github.com/nim-lang/Nim/issues/22205
-  let (outp, status) = handle.execProcess("nim", @["check", "--ic:on", "--mm:refc", fmt"--defusages:{file},{pos.line + 1},{pos.character + 1}"] & ourOptions & $file.path)
-  if status == QuitFailure: return
-  var s = SymbolUsage()
-  for lineStr in outp.splitLines():
-    var
-      file = ""
-      line = -1
-      col = -1
-    # TODO: Fix navigator.nim so that the RHS of identDefs isn't considered a decl
-    if lineStr.scanf("def$s$+($i, $i)", file, line, col):
-      s.def = (file, initPos(line, col))
-    elif lineStr.scanf("usage$s$+($i, $i)", file, line, col):
-      s.usages &= (file, initPos(line, col))
-  return some s
 
 proc getErrors*(handle: RequestHandle, file: NimFile, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form

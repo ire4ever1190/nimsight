@@ -401,6 +401,7 @@ type
     documentSymbolProvider*: Union[(bool, DocumentSymbolOptions)]
     textDocumentSync*: Union[(bool, TextDocumentSyncOptions)]
     selectionRangeProvider*: bool
+    definitionProvider*: bool
 
   ClientCapabilities* = object
 
