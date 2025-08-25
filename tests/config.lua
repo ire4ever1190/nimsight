@@ -150,6 +150,7 @@ register_cmd("Def", function (opts)
   vim.lsp.buf_request_all(0, "textDocument/definition", args, function (result)
     local range = result[1].result.range
     println(string.format("%s:%s %s:%s", range.start.line, range.start.character, range["end"].line, range["end"].character))
+    coroutine.resume(cmds, "textDocument/definition")
   end)
 end, { })
 

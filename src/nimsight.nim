@@ -116,7 +116,7 @@ lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionP
         if symbol.name.nimIdentNormalize() == targetName:
           return some Location(
             uri: params.textDocument.uri,
-            range: symbol.range
+            range: symbol.selectionRange
           )
 
 lsp.listen(documentSymbols) do (
