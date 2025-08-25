@@ -139,6 +139,10 @@ test "Shutdown":
   let output = nvimTest("shutdown")
   check "quit with exit code 1" notin output
 
+test "Go to definition":
+  let output = nvimTest("findDefinition")
+  check "1:6 1:10" in output
+
 suite "Nimscript":
   test "Nimble file loads without error":
     let output = nvimTest("nimble.nimble")

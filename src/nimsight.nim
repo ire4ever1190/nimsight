@@ -106,11 +106,11 @@ lsp.listen(symbolDefinition) do (h: RequestHandle, params: TextDocumentPositionP
 
       # Check if the node is an identifier
       let foundNode = document[nodeUnder.unsafeGet()]
-      debug $foundNode.kind
       if foundNode.kind != nkIdent: return none(Location)
 
       let targetName = foundNode.strVal.nimIdentNormalize()
 
+      # Now search the outline, and return the first match
       let outline = document.getPtr(NodeIdx(0)).outLineDocument()
       for symbol in outline:
         if symbol.name.nimIdentNormalize() == targetName:
