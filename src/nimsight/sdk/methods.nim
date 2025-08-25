@@ -53,6 +53,8 @@ const
     ## Notification that a new document has been opened
   savedNotification* = defNotification[DidSaveTextDocumentParams]("textDocument/didSave")
     ## Notification that the document has been saved
+  closedNotification* = defNotification[DidCloseTextDocumentParams]("textDocument/didClose")
+    ## Notification that the document has been closed
   symbolDefinition* = defMethod[TextDocumentPositionParams, Option[Location]]("textDocument/definition")
     ## Client is requesting where the symbol under the cursor is defined
   codeAction* = defMethod[CodeActionParams, seq[CodeAction]]("textDocument/codeAction")

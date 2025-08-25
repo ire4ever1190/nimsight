@@ -72,6 +72,11 @@ lsp.listen[:DidChangeTextDocumentParams, void, false](changedNotification) do (h
   updateFile(params)
   h.server[].queue(sendDiagnostics.init(params.textDocument.uri))
 
+lsp.listen[:DidCloseTextDocumentParams, void, false](closedNotification) do (h: RequestHandle, params: DidCloseTextDocumentParams) {.gcsafe.}:
+  writeWith filesLock:
+    {.gcsafe.}:
+      fileStore.del(params.textDocument.uri)
+
 lsp.listen[:DidOpenTextDocumentParams, void, false](openedNotification) do (h: RequestHandle, params: DidOpenTextDocumentParams) {.gcsafe.}:
   updateFile(params)
   h.server[].queue(sendDiagnostics.init(params.textDocument.uri))
