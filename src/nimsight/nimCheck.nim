@@ -1,5 +1,5 @@
 ## Utils for working with Nim check
-import std/[osproc, strformat, strscans, strutils, options, sugar, os, streams, paths, logging]
+import std/[osproc, strformat, options, sugar, os, streams, paths, logging]
 
 import sdk/[types, hooks, server, params]
 
