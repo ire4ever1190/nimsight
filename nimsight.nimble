@@ -13,3 +13,4 @@ bin = @["nimsight"]
 requires "nim >= 2.2.4"
 requires "threading#c69e13a"
 requires "https://github.com/status-im/nim-minilru#c353041"
+requires "gh:ire4ever1190/jaysonrpc"

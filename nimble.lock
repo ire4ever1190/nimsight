@@ -1,14 +1,24 @@
 {
   "version": 2,
   "packages": {
+    "jaysonrpc": {
+      "version": "0.1.0",
+      "vcsRevision": "2b378cf36d461fe8bc20439ea9bf3f0aa7d20d35",
+      "url": "https://github.com/ire4ever1190/jaysonrpc",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "6be8f91c365b60e75a70866d6edbc28c9f1f2264"
+      }
+    },
     "results": {
-      "version": "0.5.0",
-      "vcsRevision": "57b2392ad69849e3e2d02b74a8a0feee2c3d9570",
+      "version": "0.5.1",
+      "vcsRevision": "df8113dda4c2d74d460a8fa98252b0b771bf1f27",
       "url": "https://github.com/arnetheduck/nim-results",
       "downloadMethod": "git",
       "dependencies": [],
       "checksums": {
-        "sha1": "901e2ed088160fdcb8fdf3b315ce62baedc3f7ba"
+        "sha1": "a9c011f74bc9ed5c91103917b9f382b12e82a9e7"
       }
     },
     "unittest2": {
