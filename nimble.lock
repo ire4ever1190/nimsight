@@ -1,14 +1,26 @@
 {
   "version": 2,
   "packages": {
-    "jaysonrpc": {
-      "version": "0.1.0",
-      "vcsRevision": "2b378cf36d461fe8bc20439ea9bf3f0aa7d20d35",
-      "url": "https://github.com/ire4ever1190/jaysonrpc",
+    "threading": {
+      "version": "0.2.1",
+      "vcsRevision": "c5a39a039f24d48ba9503dcb9a0aee68a0fbb36d",
+      "url": "https://github.com/nim-lang/threading",
       "downloadMethod": "git",
       "dependencies": [],
       "checksums": {
-        "sha1": "6be8f91c365b60e75a70866d6edbc28c9f1f2264"
+        "sha1": "6904743cf079e9715f15a1e9e84c8187113ce1f4"
+      }
+    },
+    "jaysonrpc": {
+      "version": "0.1.0",
+      "vcsRevision": "75fc3ed101f05c5cb03059897c33a43ee1f05e5a",
+      "url": "https://github.com/ire4ever1190/jaysonrpc",
+      "downloadMethod": "git",
+      "dependencies": [
+        "threading"
+      ],
+      "checksums": {
+        "sha1": "74f4042cfc362b2140bc7d4d1d8e1e7c50f81516"
       }
     },
     "results": {
@@ -42,16 +54,6 @@
       ],
       "checksums": {
         "sha1": "9f200310ac8455e07e6d3a9d1b4088677cb63603"
-      }
-    },
-    "threading": {
-      "version": "0.2.0",
-      "vcsRevision": "c69e13aeb9127cdf8519b07e3f270eada34eee5d",
-      "url": "https://github.com/nim-lang/threading",
-      "downloadMethod": "git",
-      "dependencies": [],
-      "checksums": {
-        "sha1": "1bb1be822a989a8b56bd86c4e1117367426f1b67"
       }
     }
   },

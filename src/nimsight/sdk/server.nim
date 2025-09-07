@@ -32,12 +32,6 @@ type
     listeners: Table[string, Handler]
     queue: Chan[Message]
       ## Queue of messages to process
-    inProgressLock: RwLock
-      ## Lock on the in progress table
-    inProgress {.guard: inProgressLock.}: Table[string, bool]
-      ## Table of request ID to whether they have been cancelled or not.
-      ## i.e. if the value is false, then the request has been cancelled by the server.
-      ## It is the request handlers just to check this on a regular basis.
     running: Atomic[bool]
       ## Tracks if the server is shutting down or not
     roots*: seq[Path]
@@ -69,18 +63,6 @@ func id*(h: RequestHandle): Option[string] {.inline.} = h.id
 
 proc initHandle*(id: Option[string], s: ptr Server): RequestHandle =
   RequestHandle(id: id, server: s)
-
-proc isRunning*(r: RequestHandle): bool =
-  ## Returns true if the request **should** still be running.
-  ## i.e. if this is false then the request has been cancelled
-  # Notifications can't really be cancelled
-  if r.id.isNone(): return true
-  # Check the table
-  readWith r.server[].inProgressLock:
-    # The ID should never be removed until the request is removed from the server
-    return r.server[].inProgress[r.id.unsafeGet()]
-
-proc isRunning*(s: var Server): bool {.inline.} = s.running.load()
 
 const NimblePkgVersion {.strdefine.} = "Unknown"
   ## Nimble defines this when building a project. Default the server
