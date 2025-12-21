@@ -13,14 +13,14 @@
     },
     "jaysonrpc": {
       "version": "0.1.0",
-      "vcsRevision": "75fc3ed101f05c5cb03059897c33a43ee1f05e5a",
+      "vcsRevision": "0bd52ece2e3a3ab45fe2dfa0aa5941a292fb512a",
       "url": "https://github.com/ire4ever1190/jaysonrpc",
       "downloadMethod": "git",
       "dependencies": [
         "threading"
       ],
       "checksums": {
-        "sha1": "74f4042cfc362b2140bc7d4d1d8e1e7c50f81516"
+        "sha1": "b2a47518a64da888a1fbcaa60a92bebd6fc7eb10"
       }
     },
     "results": {

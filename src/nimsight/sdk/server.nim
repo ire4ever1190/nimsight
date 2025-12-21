@@ -231,10 +231,6 @@ proc workerThread(server: ptr Server) {.thread.} =
         request.respond(e[])
     else:
       request.respond(ServerError(code: MethodNotFound, msg: fmt"Nothing to handle {request.meth}"))
-    # Remove the request from the in-progress list.
-    if id.isSome:
-      writeWith server[].inProgressLock:
-        server[].inProgress.del(id.unsafeGet())
 
 proc spawnWorkers*(server: var Server, n: int) =
   ## Spawns `n` workers
