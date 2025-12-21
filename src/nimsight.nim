@@ -136,5 +136,17 @@ lsp.listen[:InitializedParams, void, false](initialized) do (h: RequestHandle, p
       if answer.get(No) == Yes:
         discard h.execProcess("nimble", ["setup"], workingDir = $root)
 
+# Special handlers, should be handled earlier in case server is busy
+lsp.on("$/cancelRequest") do (params: tuple[id: JsonNode], ctx: Context) =
+  info "Cancelling ", request.params["id"]
+  ctx.cancel(params.id)
+
+lsp.on("shutdown") do () =
+  info "Shutting down"
+  server.shutdown()
+
+lsp.on("exit") do () =
+  info "Exiting"
+  quit int(server.isRunning)
 
 lsp.poll()

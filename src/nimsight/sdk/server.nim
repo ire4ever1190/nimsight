@@ -8,7 +8,9 @@ import types, protocol, hooks, params, ./logging, methods
 import utils
 
 import threading/[channels, rwlock]
-#
+
+import pkg/jaysonrpc
+
 type
   Handler* = proc (handle: RequestHandle, x: JsonNode): Option[JsonNode] {.gcsafe.}
     ## Handler for a method. Uses JsonNode to perform type elision,
@@ -30,7 +32,7 @@ type
 
   Server* = object
     listeners: Table[string, Handler]
-    queue: Chan[Message]
+    queue: Chan[ConstructedCall[JsonNode]]
       ## Queue of messages to process
     running: Atomic[bool]
       ## Tracks if the server is shutting down or not
@@ -42,6 +44,7 @@ type
     results*: ResponseTable
     name*: string
     version*: string
+    executor: Executor[JsonNode]
 
   RequestHandle* = object
     ## Handle to a request. Used for getting information
@@ -140,64 +143,9 @@ proc showMessageRequest*[T: enum](
   if resp.isSome():
     return parseEnum[T](resp.unsafeGet()).some()
 
-proc addHandler(server: var Server, event: string, handler: Handler) =
-  ## Internal method for adding handler.
-  ## Should only be called in the main thread (We don't lock the listeners)
-  server.listeners[event] = handler
-
-
-type ListenHandler[P, R] = proc (r: RequestHandle, param: P): R
-
-proc listen*[P, R, N](server: var Server, msg: RPCMessage[P, R, N], handler: ListenHandler[P, R]) =
+proc on*[P, R, N](server: var Server, meth: string, handler: proc) =
   ## Adds a handler for an event
-  proc inner(handle: RequestHandle, x: JsonNode): Option[JsonNode] {.stacktrace: off, gcsafe.} =
-    ## Conversion of the JSON and catching any errors.
-    let data = try:
-        x.jsonTo(P, JOptions(allowMissingKeys: true, allowExtraKeys: true))
-      except CatchableError as e:
-        error fmt"Got invalid JSON for {$P}: {x}"
-        raise (ref ServerError)(code: InvalidParams, msg: e.msg, data: x)
-    try:
-      when R is not void:
-        let ret = handler(handle, data)
-        {.gcsafe.}:
-          return some ret.toJson()
-      elif N:
-        handler(handle, data)
-        return none(JsonNode)
-      else:
-        handler(handle, data)
-        return some newJNull()
-    except ServerError:
-      # Bubble it up, will be handled later
-      raise
-    except Exception as e:
-      let entries = collect:
-        for entry in e.getStacktraceEntries():
-         fmt"{entry.filename}:{entry.line} {entry.procName}"
-      raise (ref ServerError)(code: RequestFailed, msg: e.msg, data: %* entries)
-
-  server.addHandler(msg.meth, inner)
-
-proc meth(x: Message): string =
-  case x
-  of RequestMessage, NotificationMessage:
-    x.`method`
-  else:
-    ""
-
-proc params(x: Message): JsonNode =
-  case x
-  of RequestMessage: x.params
-  of NotificationMessage:
-    x.params.get(newJNull())
-  else:
-    newJNull()
-
-proc updateRequestRunning(s: var Server, id: string, val: bool) =
-  ## Updates the request running statusmi
-  writeWith s.inProgressLock:
-    s.inProgress[$id] = val
+  server.executor.on(meth, handler)
 
 proc workerThread(server: ptr Server) {.thread.} =
   ## Initialises a worker thread and then handles messages
@@ -208,29 +156,13 @@ proc workerThread(server: ptr Server) {.thread.} =
   while true:
     let request = server[].queue.recv()
     # Don't process if the server is shutting down
-    if not server[].isRunning: break
+    if not server[].running:
+      break
 
-    let id = request.id
-    # TODO: Break this out into a generic handleMessage() proc
-    # We are only reading this so it should be fine right??
-    if request of ResponseMessage:
-      let resp = ResponseMessage(request)
-      server[].results.put($resp.id, resp.`result`.unsafeGet)
-      continue
-
-    if request.meth in server[].listeners:
-      let
-        handler = server[].listeners[request.meth]
-        handle = initHandle(id, server)
-      try:
-        let returnVal = handler(handle, request.params)
-        if returnVal.isSome() and id.isSome():
-          request.respond(returnVal.unsafeGet())
-      except ServerError as e:
-        debug("Failed: ", e.msg)
-        request.respond(e[])
-    else:
-      request.respond(ServerError(code: MethodNotFound, msg: fmt"Nothing to handle {request.meth}"))
+    let resp = request()
+    # Only requests get a response
+    if resp.isSome():
+      writeResponse($resp.unsafeGet())
 
 proc spawnWorkers*(server: var Server, n: int) =
   ## Spawns `n` workers
@@ -252,28 +184,27 @@ proc shutdown*(server: var Server) =
   ## - Signals that each worker should stop processing
   ## - Waits for all worker threads to finish
   ## Cannot be called on any worker thread (it will deadlock)
-  # First notify all workers that they need to shutdown.
+
+  # Mark ourselves as not running
   server.running.store(false)
-  writeWith server.inProgressLock:
-    for running in server.inProgress.mvalues:
-      running = false
+
+  # Everything start gracefully shutting down
+  server.executor.shutdown()
+
   # Send a shutdown message. Each worker needs to read a message
   # so that it checks the running flag again.
-  for _ in 0..server.workers.high:
-    server.queue(knockoff.init())
+  # for _ in 0..server.workers.high:
+    # server.queue(knockoff.init())
   # And make sure every thread stops.
   # Don't join the current thread
   joinThreads(server.workers)
-
-proc cancel*(server: var Server, id: string) =
-  ## Cancels a request in the server
-  server.updateRequestRunning(id, false)
 
 type Args = tuple[server: ptr Server, pid: int]
 var t: Thread[Args]
 proc checkProcess(args: Args) {.thread.} =
   ## Runs a check every 10 seconds that the process passed is still running.
-  ## Shutdowns the server if it closes
+  ## Shutdowns the server if it closes.
+  ## This is used to make sure we close after the parent editor closes
   let (server, pid) = args
   while pid.isRunning():
     sleep 10 * 1000
@@ -290,29 +221,15 @@ proc poll*(server: var Server) =
 
   while true:
     let request = readRequest()
-    if request of RequestMessage:
-      info "Calling method: ", RequestMessage(request).`method`
 
-    # Few get special cased since we want them handled no matter what.
-    # Rest get sent into worker queue
-    case request.meth
-    of "$/cancelRequest":
-      # We special case handling $/cancelRequest since the worker queue
-      # could be filled up which means the cancelRequest wouldn't get handled
-      info "Cancelling ", request.params["id"]
-      server.cancel($request.params["id"])
-    of "shutdown":
-      info "Shutting down"
-      server.shutdown()
-      request.respond(newJNull())
-    of "exit":
-      quit int(server.isRunning)
+    if server.isRunning:
+      let calls = server.executor.getCalls(request.data)
+      # We never batch https://github.com/microsoft/language-server-protocol/pull/1651
+      for call in calls:
+        server.queue(call)
     else:
       # Spec says we should error if shutting down
-      if server.isRunning:
-        server.queue(request)
-      else:
-        request.respond(ServerError(code: InvalidRequest, msg: "Server is shutting down"))
+      request.respond(ServerError(code: InvalidRequest, msg: "Server is shutting down"))
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers

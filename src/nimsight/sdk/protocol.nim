@@ -31,21 +31,19 @@ var stdoutLock: Lock
   ## Lock on stdout. Allows responding to messages to be threadsafe
 initLock(stdoutLock)
 
+type
+  MessageKind = enum
+    Message
+    Response
+  StdioMessage = object
+    kind*: MessageKind
+    data*: string
 
-proc readRequest*(): Message =
+proc readRequest*(): StdioMessage =
   ## Returns either a [RequestMessage] or [NotificationMessage]
-  const options = JOptions(allowMissingKeys: true)
   let data = readPayload()
-  try:
-    if "id" in data: # Notifications dont have an ID
-      if "method" in data:
-        return data.jsonTo(RequestMessage, options)
-      else:
-        return data.jsonTo(ResponseMessage, options)
-    else:
-      return data.jsonTo(NotificationMessage, options)
-  except CatchableError as e:
-    raise (ref ServerError)(code: ParseError, msg: e.msg)
+  let kind = if "method" in data: Message else: Response
+  return StdioMessage(kind: kind, data: $data)
 
 
 proc writeHeader(f: File, name: string, val: string) =
@@ -62,7 +60,7 @@ proc id*(m: Message): JsonNode =
   else:
     newJNull()
 
-proc writeResponse(respBody: string) =
+proc writeResponse*(respBody: string) =
   ## Writes the result to stdout and flushes so client can read it
   # I think I remember seeing Nim has a stdout lock? But have this anyways
   # just to be safe
@@ -132,5 +130,3 @@ proc sendRequestMessage*[P, R](msg: RPCMethod[P, R], payload: P): int {.gcsafe.}
 proc showMessage*(message: string, typ: MessageType) =
   ## Sends a message to be shown in the client
   sendNotification(windowShowMessage, ShowMessageParams(`type`: typ, message: message))
-
-
