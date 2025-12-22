@@ -4,6 +4,8 @@ import std/[strutils, json, jsonutils, options, strformat, tables, paths, files]
 import nimsight/sdk/[server, types, methods, protocol, params, logging]
 import nimsight/[nimCheck, customast, codeActions, files, utils]
 
+import nimsight/utils/locks
+
 import std/[locks, os]
 
 import pkg/threading/[rwlock, channels]
@@ -16,30 +18,26 @@ type
 
 using s: var Server
 
-var filesLock = createRwLock()
-var fileStore {.guard: filesLock.} = initFileStore(20) # TODO: Make this configurable
+var fileStore = protectReadWrite(initFileStore(20)) # TODO: Make this configurable
 
 proc updateFile(params: DidChangeTextDocumentParams) {.gcsafe.} =
   ## Updates file cache with updates
   let doc = params.textDocument
   assert params.contentChanges.len <= 1, "Only full updates are supported"
-  writeWith filesLock:
+  fileStore.with do (files: var FileStore):
     for change in params.contentChanges:
-      {.gcsafe.}:
-        fileStore.put(doc.uri, change.text, doc.version)
+      files.put(doc.uri, change.text, doc.version)
 
 proc updateFile*(params: DidOpenTextDocumentParams) {.gcsafe.} =
   ## Updates file cache with an open item
   let doc = params.textDocument
-  writeWith filesLock:
-    {.gcsafe.}:
-      fileStore.put(doc.uri, doc.text, doc.version)
+  fileStore.with do (files: var FileStore):
+    files.put(doc.uri, doc.text, doc.version)
 
 proc checkFile(ctx: NimContext, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
-  writeWith filesLock:
-    {.gcsafe.}:
-      let diagnostics = ctx.getDiagnostics(fileStore, uri)
+  fileStore.with do (files: var FileStore):
+    let diagnostics = ctx.getDiagnostics(files, uri)
     sendNotification(publishDiagnostics, PublishDiagnosticsParams(
       uri: uri,
       diagnostics: diagnostics
@@ -49,21 +47,16 @@ addHandler(newLSPLogger())
 
 var lsp = initServer("NimSight")
 
-var
-  currentCheckLock: Lock
-  currentCheck {.guard: currentCheckLock.}: JsonNode
-
-initLock(currentCheckLock)
+var currentCheck = protectReadWrite(newJNull())
 
 const sendDiagnostics = MethodDef[tuple[uri: DocumentURI], void](name: "extension/internal/sendDiagnostics")
 
 lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
   try:
     # Cancel any previous request, then register this as the latest
-    {.gcsafe.}:
-      withLock currentCheckLock:
-        ctx.cancel(currentCheck)
-        currentCheck = ctx.id.unsafeGet()
+    currentCheck.with do (check: var JsonNode):
+        ctx.cancel(check)
+        check = ctx.id.unsafeGet()
     sleep 100
     ctx.checkFile(uri)
   except ServerError as e:
@@ -84,9 +77,8 @@ lsp.on(savedNotification.meth) do (ctx: NimContext, params: DidSaveTextDocumentP
   ctx.data[].queue.send($ sendDiagnostics.notify((params.textDocument.uri,)).toJson())
 
 lsp.on(selectionRange.meth) do (ctx: NimContext, params: SelectionRangeParams) -> seq[SelectionRange] {.gcsafe.}:
-  writeWith filesLock:
-    {.gcsafe.}:
-      let root = fileStore.parseFile(params.textDocument.uri).ast
+  fileStore.with do (files: var FileStore) -> seq[SelectionRange]:
+    let root = files.parseFile(params.textDocument.uri).ast
     result = newSeqOfCap[SelectionRange](params.positions.len)
     for pos in params.positions:
       let node = root[].findNode(pos)
@@ -95,9 +87,8 @@ lsp.on(selectionRange.meth) do (ctx: NimContext, params: SelectionRangeParams) -
 
 lsp.on(codeAction.meth) do (ctx: NimContext, params: CodeActionParams) -> seq[CodeAction] {.gcsafe.}:
   # Find the node that the params are referring to
-  writeWith filesLock:
-    {.gcsafe.}:
-      return getCodeActions(ctx, fileStore, params)
+  fileStore.with do (files: var FileStore) -> seq[CodeAction]:
+    return getCodeActions(ctx, files, params)
 
 lsp.on(symbolDefinition.meth) do (ctx: NimContext, params: TextDocumentPositionParams) -> Option[Location] {.gcsafe.}:
   let usages = ctx.findUsages(params.textDocument.uri, params.position)
@@ -116,9 +107,8 @@ lsp.on(documentSymbols.meth) do (
   ctx: NimContext,
   params: DocumentSymbolParams
 ) -> seq[DocumentSymbol] {.gcsafe.}:
-  writeWith filesLock:
-    {.gcsafe.}:
-      return fileStore.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
+  fileStore.with do (files: var FileStore) -> seq[DocumentSymbol]:
+    return files.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
 
 lsp.on(initialized.meth) do (ctx: NimContext, params: InitializedParams):
   logging.info("Client initialised")
