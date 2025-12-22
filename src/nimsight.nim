@@ -74,14 +74,14 @@ lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
 
 lsp.on(changedNotification.meth) do (ctx: NimContext, params: DidChangeTextDocumentParams) {.gcsafe.}:
   updateFile(params)
-  ctx.data[].queue($ sendDiagnostics.notify((params.textDocument.uri)).toJson())
+  ctx.data[].queue.send($ sendDiagnostics.notify((params.textDocument.uri,)).toJson())
 
 lsp.on(openedNotification.meth) do (ctx: NimContext, params: DidOpenTextDocumentParams) {.gcsafe.}:
   updateFile(params)
-  ctx.data[].queue($ sendDiagnostics.notify((params.textDocument.uri)).toJson())
+  ctx.data[].queue.send($ sendDiagnostics.notify((params.textDocument.uri,)).toJson())
 
 lsp.on(savedNotification.meth) do (ctx: NimContext, params: DidSaveTextDocumentParams) {.gcsafe.}:
-  ctx.data[].queue($ sendDiagnostics.notify((params.textDocument.uri)).toJson())
+  ctx.data[].queue.send($ sendDiagnostics.notify((params.textDocument.uri,)).toJson())
 
 lsp.on(selectionRange.meth) do (ctx: NimContext, params: SelectionRangeParams) -> seq[SelectionRange] {.gcsafe.}:
   writeWith filesLock:
@@ -141,9 +141,9 @@ lsp.on(initialized.meth) do (ctx: NimContext, params: InitializedParams):
         discard ctx.execProcess("nimble", ["setup"], workingDir = $root)
 
 # Special handlers, should be handled earlier in case server is busy
-lsp.on("$/cancelRequest") do (id: JsonNode, ctx: Context):
-  info "Cancelling ", request.params["id"]
-  ctx.cancel(params.id)
+lsp.on("$/cancelRequest") do (id: JsonNode, ctx: NimContext):
+  info "Cancelling ", id
+  ctx.cancel(id)
 
 lsp.on("shutdown") do (ctx: NimContext):
   info "Shutting down"
