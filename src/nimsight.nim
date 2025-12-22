@@ -6,7 +6,8 @@ import nimsight/[nimCheck, customast, codeActions, files, utils]
 
 import std/[locks, os]
 
-import pkg/threading/rwlock
+import pkg/threading/[rwlock, channels]
+import pkg/jaysonrpc
 
 type
   BooleanChoice = enum
@@ -54,7 +55,9 @@ var
 
 initLock(currentCheckLock)
 
-lsp.on(sendDiagnostics.meth) do (ctx: NimContext, params: DocumentUri) {.gcsafe.}:
+const sendDiagnostics = MethodDef[tuple[uri: DocumentURI], void](name: "extension/internal/sendDiagnostics")
+
+lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
   try:
     # Cancel any previous request, then register this as the latest
     {.gcsafe.}:
@@ -62,22 +65,23 @@ lsp.on(sendDiagnostics.meth) do (ctx: NimContext, params: DocumentUri) {.gcsafe.
         ctx.cancel(currentCheck)
         currentCheck = ctx.id.unsafeGet()
     sleep 100
-    ctx.checkFile(params)
+    ctx.checkFile(uri)
   except ServerError as e:
     # Ignore cancellations
     if e.code != RequestCancelled:
       raise e
 
+
 lsp.on(changedNotification.meth) do (ctx: NimContext, params: DidChangeTextDocumentParams) {.gcsafe.}:
   updateFile(params)
-  ctx.data[].queue(sendDiagnostics.init(params.textDocument.uri))
+  ctx.data[].queue($ sendDiagnostics.notify((params.textDocument.uri)).toJson())
 
 lsp.on(openedNotification.meth) do (ctx: NimContext, params: DidOpenTextDocumentParams) {.gcsafe.}:
   updateFile(params)
-  ctx.data[].queue(sendDiagnostics.init(params.textDocument.uri))
+  ctx.data[].queue($ sendDiagnostics.notify((params.textDocument.uri)).toJson())
 
 lsp.on(savedNotification.meth) do (ctx: NimContext, params: DidSaveTextDocumentParams) {.gcsafe.}:
-  discard
+  ctx.data[].queue($ sendDiagnostics.notify((params.textDocument.uri)).toJson())
 
 lsp.on(selectionRange.meth) do (ctx: NimContext, params: SelectionRangeParams) -> seq[SelectionRange] {.gcsafe.}:
   writeWith filesLock:

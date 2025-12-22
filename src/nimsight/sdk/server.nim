@@ -27,7 +27,7 @@ type
     ## Thread that runs a worker for handling requests
 
   Server* = object
-    queue: Chan[ConstructedCall[JsonNode]]
+    queue*: Chan[string]
       ## Queue of messages to process
     roots*: seq[Path]
       ## Workspace roots
@@ -142,6 +142,7 @@ proc workerThread(server: ptr Server) {.thread.} =
   ## Implemented via a work stealing message queue
   # Initialise the worker.
   addHandler(newLSPLogger())
+  let rpc = server[].executor
   # Start the worker loop
   while true:
     let request = server[].queue.recv()
@@ -149,10 +150,13 @@ proc workerThread(server: ptr Server) {.thread.} =
     if not server[].isRunning:
       break
 
-    let resp = request()
+    let calls = rpc.getCalls(request, server)
+    let responses = collect:
+      for call in calls:
+        call()
+    let response = calls.dump(responses)
     # Only requests get a response
-    if resp.isSome():
-      writeResponse($resp.unsafeGet())
+    response.map(writeResponse)
 
 proc spawnWorkers*(server: var Server, n: int) =
   ## Spawns `n` workers
@@ -200,14 +204,7 @@ proc poll*(server: var Server) =
   while true:
     let request = readRequest()
 
-    let call = block:
-      let calls = server.executor.getCalls(request.data, addr server)
-      # We never batch https://github.com/microsoft/language-server-protocol/pull/1651
-      var singleCall: ConstructedCall[JsonNode]
-      for call in calls:
-        singleCall = call
-      singleCall
-    server.queue.send(unsafeIsolate(call))
+    server.queue.send(request.data)
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers
@@ -216,7 +213,7 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     name: name,
     version: version,
     executor: initExecutor[JsonNode, ptr Server](),
-    queue: newChan[ConstructedCall[JsonNode]](),
+    queue: newChan[string](),
   )
 
   result.on("initialize") do (params: InitializeParams, ctx: NimContext) -> InitializeResult:
