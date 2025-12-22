@@ -140,13 +140,13 @@ type
     def*: (string, Position)
     usages*: seq[(string, Position)]
 
-proc raiseCancelled() {.raises: [ServerError].} =
-    raise (ref ServerError)(code: RequestCancelled)
+proc raiseCancelled(ctx: NimContext) {.raises: [RPCError].} =
+    raise (ref RPCError)(code: RequestCancelled, id: ctx.id)
 
-proc execProcess*(handle: RequestHandle, cmd: string, args: openArray[string], input = "", workingDir=""): tuple[output: string, code: int] =
+proc execProcess*(ctx: NimContext, cmd: string, args: openArray[string], input = "", workingDir=""): tuple[output: string, code: int] =
   ## Runs a process, automatically checks if the request has ended and then stops the running process.
   # Don't start a process if the handle is already cancelled
-  if not handle.isRunning(): raiseCancelled()
+  if ctx.isCancelled(): ctx.raiseCancelled()
 
   debug(fmt"Running `{cmd}` with args {args} in '{workingDir}'")
 
@@ -163,22 +163,22 @@ proc execProcess*(handle: RequestHandle, cmd: string, args: openArray[string], i
     process.inputStream().write(input)
   close inputStream(process)
 
-  while process.running and handle.isRunning:
+  while process.running and not ctx.isCancelled:
     # Don't want to burn the thread with the isRunning check
     sleep 10
-  if not handle.isRunning():
+  if ctx.isCancelled():
     # TODO: Let the caller handle it, for now we play it simple
     process.kill()
     discard process.waitForExit()
-    raiseCancelled()
+    ctx.raiseCancelled()
   return (process.outputStream().readAll(), process.peekExitCode())
 
-proc findUsages*(handle: RequestHandle, file: DocumentURI, pos: Position): Option[SymbolUsage] =
+proc findUsages*(ctx: NimContext, file: DocumentURI, pos: Position): Option[SymbolUsage] =
   ## Uses --defusages to find symbol usage/defintion
   ## Uses IC so isn't braindead slow which is cool, but zero clue
   ## what stability is like lol
   # Use refc to get around https://github.com/nim-lang/Nim/issues/22205
-  let (outp, status) = handle.execProcess("nim", @["check", "--ic:on", "--mm:refc", fmt"--defusages:{file},{pos.line + 1},{pos.character + 1}"] & ourOptions & $file.path)
+  let (outp, status) = ctx.execProcess("nim", @["check", "--ic:on", "--mm:refc", fmt"--defusages:{file},{pos.line + 1},{pos.character + 1}"] & ourOptions & $file.path)
   if status == QuitFailure: return
   var s = SymbolUsage()
   for lineStr in outp.splitLines():
@@ -193,12 +193,12 @@ proc findUsages*(handle: RequestHandle, file: DocumentURI, pos: Position): Optio
       s.usages &= (file, initPos(line, col))
   return some s
 
-proc getErrors*(handle: RequestHandle, file: NimFile, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
+proc getErrors*(ctx: NimContext, file: NimFile, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
   # See if we can get errors from the cache
   if file.ranCheck: return file.errors
   # If not, then run the compiler to get the messages
-  let (outp, _) = handle.execProcess(
+  let (outp, _) = ctx.execProcess(
     "nim",
     @["check"] & ourOptions & makeOptions(x) & "-",
     input=file.content,
@@ -248,8 +248,8 @@ proc toDiagnostics*(
     )
 
 
-proc getDiagnostics*(handle: RequestHandle, files: var FileStore, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
+proc getDiagnostics*(ctx: NimContext, files: var FileStore, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
   ## Returns all the diagnostics for a document.
   ## Mainly just converts the stored errors into Diagnostics
   let root = files.parseFile(x).ast
-  handle.getErrors(files.rawGet(x), x).toDiagnostics(root)
+  ctx.getErrors(files.rawGet(x), x).toDiagnostics(root)

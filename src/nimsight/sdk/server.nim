@@ -12,10 +12,6 @@ import threading/[channels, rwlock]
 import pkg/jaysonrpc
 
 type
-  Handler* = proc (handle: RequestHandle, x: JsonNode): Option[JsonNode] {.gcsafe.}
-    ## Handler for a method. Uses JsonNode to perform type elision,
-    ## gets converted into approiate types inside
-
   ResponseTable* = object
     ## Central location for waiting on responses to messages
     ## sent to the client
@@ -31,11 +27,8 @@ type
     ## Thread that runs a worker for handling requests
 
   Server* = object
-    listeners: Table[string, Handler]
     queue: Chan[ConstructedCall[JsonNode]]
       ## Queue of messages to process
-    running: Atomic[bool]
-      ## Tracks if the server is shutting down or not
     roots*: seq[Path]
       ## Workspace roots
     workers: seq[WorkerThread]
@@ -44,14 +37,13 @@ type
     results*: ResponseTable
     name*: string
     version*: string
-    executor: Executor[JsonNode]
+    executor: Executor[JsonNode, ptr Server]
 
-  RequestHandle* = object
-    ## Handle to a request. Used for getting information
-    id: Option[string]
-      ## ID of the request
-    server*: ptr Server
-      ## Pointer to the server. Please don't touch (I'm trusting you)
+  NimContext* = Context[ptr Server]
+
+# Extra error codes for LSP
+const
+  RequestCancelled* = RPCErrorCode(-32800)
 
 proc id(x: Message): Option[string] =
   ## Returns the ID of a message if it has one (Is a request, and ID is not null).
@@ -61,11 +53,9 @@ proc id(x: Message): Option[string] =
     if msg.id.isSome() and msg.id.unsafeGet().kind != JNull:
       return some $msg.id.unsafeGet()
 
-func id*(h: RequestHandle): Option[string] {.inline.} = h.id
-# proc server*(x: RequestHandle): ptr Server {.inline.} = x.server
-
-proc initHandle*(id: Option[string], s: ptr Server): RequestHandle =
-  RequestHandle(id: id, server: s)
+func isRunning*(server: var Server): bool =
+  ## Checks if server is still considered running
+  return server.executor.isRunning()
 
 const NimblePkgVersion {.strdefine.} = "Unknown"
   ## Nimble defines this when building a project. Default the server
@@ -143,7 +133,7 @@ proc showMessageRequest*[T: enum](
   if resp.isSome():
     return parseEnum[T](resp.unsafeGet()).some()
 
-proc on*[P, R, N](server: var Server, meth: string, handler: proc) =
+proc on*(server: var Server, meth: string, handler: proc) =
   ## Adds a handler for an event
   server.executor.on(meth, handler)
 
@@ -156,7 +146,7 @@ proc workerThread(server: ptr Server) {.thread.} =
   while true:
     let request = server[].queue.recv()
     # Don't process if the server is shutting down
-    if not server[].running:
+    if not server[].isRunning:
       break
 
     let resp = request()
@@ -170,23 +160,11 @@ proc spawnWorkers*(server: var Server, n: int) =
   for t in server.workers.mitems:
     t.createThread(workerThread, addr server)
 
-proc queue*(server: var Server, msg: sink Message) =
-  ## Queues a request to be handled by the server
-  let id = msg.id
-  if id.isSome():
-    # Register request with server so it can be tracked
-    server.updateRequestRunning($id.unsafeGet(), true)
-  # Start running the message
-  server.queue.send(unsafeIsolate(ensureMove(msg)))
-
 proc shutdown*(server: var Server) =
   ## Shutdowns the server.
   ## - Signals that each worker should stop processing
   ## - Waits for all worker threads to finish
   ## Cannot be called on any worker thread (it will deadlock)
-
-  # Mark ourselves as not running
-  server.running.store(false)
 
   # Everything start gracefully shutting down
   server.executor.shutdown()
@@ -222,27 +200,26 @@ proc poll*(server: var Server) =
   while true:
     let request = readRequest()
 
-    if server.isRunning:
-      let calls = server.executor.getCalls(request.data)
+    let call = block:
+      let calls = server.executor.getCalls(request.data, addr server)
       # We never batch https://github.com/microsoft/language-server-protocol/pull/1651
+      var singleCall: ConstructedCall[JsonNode]
       for call in calls:
-        server.queue(call)
-    else:
-      # Spec says we should error if shutting down
-      request.respond(ServerError(code: InvalidRequest, msg: "Server is shutting down"))
+        singleCall = call
+      singleCall
+    server.queue.send(unsafeIsolate(call))
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers
   ## some needed handlers to make helpers work
   result = Server(
     name: name,
-    inProgressLock: createRwLock(),
     version: version,
-    queue: newChan[Message](),
+    executor: initExecutor[JsonNode, ptr Server](),
+    queue: newChan[ConstructedCall[JsonNode]](),
   )
-  result.running.store(true)
 
-  result.listen(initialize) do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
+  result.on("initialize") do (params: InitializeParams, ctx: NimContext) -> InitializeResult:
     # Find what is supported depending on what handlers are registered.
     # Some manual capabilities will also need to be added
     result = InitializeResult(
@@ -256,15 +233,15 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
         selectionRangeProvider: true
       ),
       serverInfo: ServerInfo(
-        name: r.server[].name,
-        version: some(r.server[].version)
+        name: ctx.data[].name,
+        version: some(ctx.data[].version)
       )
     )
     # add all the roots
-    r.server[].roots = params.folders
+    ctx.data[].roots = params.folders
 
     # Add a listener for the parent process
     if params.processId.isSome:
-      t.createThread(checkProcess, (r.server, params.processId.unsafeGet))
+      t.createThread(checkProcess, (ctx.data, params.processId.unsafeGet))
 
-export hooks
+export hooks, jaysonrpc
