@@ -137,6 +137,17 @@ proc on*(server: var Server, meth: string, handler: proc) =
   ## Adds a handler for an event
   server.executor.on(meth, handler)
 
+
+proc handleCalls(rpc: Executor[JsonNode, ptr Server], payload: string, server: ptr Server) =
+  ## Executes all the calls synchronously and sends a response
+  ## LSP forbids batch calls, so there will never be more than 1
+  let calls = rpc.getCalls(payload, server)
+  let responses = collect:
+    for call in calls:
+      call()
+  let response = calls.dump(responses)
+  response.map(writeResponse)
+
 proc workerThread(server: ptr Server) {.thread.} =
   ## Initialises a worker thread and then handles messages
   ## Implemented via a work stealing message queue
@@ -150,13 +161,8 @@ proc workerThread(server: ptr Server) {.thread.} =
     if not server[].isRunning:
       break
 
-    let calls = rpc.getCalls(request, server)
-    let responses = collect:
-      for call in calls:
-        call()
-    let response = calls.dump(responses)
-    # Only requests get a response
-    response.map(writeResponse)
+    rpc.handleCalls(request, server)
+
 
 proc spawnWorkers*(server: var Server, n: int) =
   ## Spawns `n` workers
@@ -200,11 +206,26 @@ proc poll*(server: var Server) =
   #       e.g. content change events NEED to be applied in order for incremental sync
   # TODO: Add way to configure number of workers
   server.spawnWorkers(3)
-
+  # Some methods we want to handle without needing the queue. Mainly so they can be handled
+  # if all the workers and full and server is going haywire
+  # List them here, and execute here instead of sending them to workers
+  const handleFirst = [
+    "$/cancelRequest",
+    "shutdown",
+    "exit"
+  ]
   while true:
-    let request = readRequest()
+    let request = readPayload()
 
-    server.queue.send(request.data)
+    # Very wasteful, but simpliest thing to do
+    try:
+      let handleHere = request["method"].getStr() in handleFirst
+      if handleHere:
+        server.executor.handleCalls($ request, addr server)
+        continue
+    except: discard # jaysonrpc will handle it
+
+    server.queue.send($ request)
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers

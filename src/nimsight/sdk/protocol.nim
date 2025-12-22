@@ -40,7 +40,6 @@ type
     data*: string
 
 proc readRequest*(): StdioMessage =
-  ## Returns either a [RequestMessage] or [NotificationMessage]
   let data = readPayload()
   let kind = if "method" in data: Message else: Response
   return StdioMessage(kind: kind, data: $data)
