@@ -29,7 +29,7 @@ proc createFix*(e: ParsedError, node: NodePtr, diagnotics: seq[Diagnostic]): seq
 
 
 proc fixError(
-  handle: RequestHandle,
+  ctx: NimContext,
   files: var FileStore,
   params: CodeActionParams,
   ast: Tree,
@@ -42,7 +42,7 @@ proc fixError(
   let uri = params.textDocument.uri
   # Lookup the nodes for each error
   let mappedErrors = collect:
-    for error in handle.getErrors(files.rawGet(uri), uri):
+    for error in ctx.getErrors(files.rawGet(uri), uri):
       let node = ast.findNode(error.location)
       if node.isSome():
         (error, ast.getPtr(node.unsafeGet()))
