@@ -41,6 +41,7 @@ proc checkFile(ctx: NimContext, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
   fileStore.with do (files: var FileStore):
     let diagnostics = ctx.getDiagnostics(files, uri)
+
     sendNotification(publishDiagnostics, PublishDiagnosticsParams(
       uri: uri,
       diagnostics: diagnostics
@@ -56,13 +57,15 @@ const sendDiagnostics = MethodDef[tuple[uri: DocumentURI], void](name: "extensio
 
 lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
   try:
-    # Cancel any previous request, then register this as the latest
+    # Cancel any previous request, then register this as the latest.
+    # TODO: Make this request be per file
     currentCheck.with do (check: var JsonNode):
         ctx.cancel(check)
         check = ctx.id.unsafeGet()
     # Sleep so we debounce the request
     sleep 100
-    ctx.checkFile(uri)
+    if not ctx.isCancelled:
+      ctx.checkFile(uri)
   except RPCError as e:
     # Ignore cancellations
     if e.code != RequestCancelled:
