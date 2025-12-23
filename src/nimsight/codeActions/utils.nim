@@ -32,7 +32,6 @@ proc getCodeActions*(ctx: NimContext, files: var FileStore, params: CodeActionPa
 
   # Now run every provider, getting the list of actions
   {.gcsafe.}:
-    debug "Running providers: ", len(providers)
     for provider in providers:
       result &= provider(ctx, files, params, root.ast, node.unsafeGet())
 

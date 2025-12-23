@@ -158,7 +158,6 @@ template makeWorkerThread(queue: untyped): untyped =
     # Start the worker loop
     info "Starting worker thread for " & astToStr(queue)
     while true:
-      debug server[].orderedQueue.peek
       let request = server[].queue.recv()
       # Don't process if the server is shutting down
       if not server[].isRunning:
