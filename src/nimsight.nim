@@ -82,6 +82,10 @@ lsp.on(openedNotification.meth) do (ctx: NimContext, textDocument: TextDocumentI
 lsp.on(savedNotification.meth) do (ctx: NimContext, textDocument: VersionedTextDocumentIdentifier) {.gcsafe.}:
   ctx.requestDiagnostics(textDocument.uri)
 
+lsp.on("textDocument/didClose") do (textDocument: TextDocumentIdentifier):
+  fileStore.with do (files: var FileStore):
+    files.del(textDocument.uri)
+
 lsp.on(selectionRange.meth) do (ctx: NimContext, params: SelectionRangeParams) -> seq[SelectionRange] {.gcsafe.}:
   fileStore.with do (files: var FileStore) -> seq[SelectionRange]:
     let root = files.parseFile(params.textDocument.uri).ast

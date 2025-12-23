@@ -253,3 +253,5 @@ proc getDiagnostics*(ctx: NimContext, files: var FileStore, x: DocumentUri): seq
   ## Mainly just converts the stored errors into Diagnostics
   let root = files.parseFile(x).ast
   ctx.getErrors(files.rawGet(x), x).toDiagnostics(root)
+
+export minilru
