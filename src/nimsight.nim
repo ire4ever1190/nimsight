@@ -111,10 +111,10 @@ lsp.on(symbolDefinition.meth) do (ctx: NimContext, textDocument: TextDocumentIde
 
 lsp.on(documentSymbols.meth) do (
   ctx: NimContext,
-  params: DocumentSymbolParams
+  textDocument: TextDocumentIdentifier
 ) -> seq[DocumentSymbol] {.gcsafe.}:
   fileStore.with do (files: var FileStore) -> seq[DocumentSymbol]:
-    return files.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
+    return files.parseFile(textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
 
 lsp.on(initialized.meth) do (ctx: NimContext):
   logging.info("Client initialised")
