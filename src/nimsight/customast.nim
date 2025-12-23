@@ -11,6 +11,8 @@ import sdk/types
 
 import utils/ast
 
+export nodekinds
+
 type
   NodeIdx* = uint32
     ## Index into the tree

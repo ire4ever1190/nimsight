@@ -30,6 +30,9 @@ type
   DidOpenTextDocumentParams* = object
     textDocument*: TextDocumentItem
 
+  DidCloseTextDocumentParams* = object
+    textDocument*: TextDocumentIdentifier
+
   DidChangeTextDocumentParams* = object
     textDocument*: VersionedTextDocumentIdentifier
     contentChanges*: seq[TextDocumentContentChangeEvent]
