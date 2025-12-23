@@ -9,7 +9,7 @@ import nimsight/utils/locks
 import std/[locks, os]
 
 import pkg/threading/[rwlock, channels]
-import pkg/jaysonrpc
+import pkg/[jaysonrpc, anano]
 
 type
   BooleanChoice = enum
@@ -60,16 +60,19 @@ lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
     currentCheck.with do (check: var JsonNode):
         ctx.cancel(check)
         check = ctx.id.unsafeGet()
+    # Sleep so we debounce the request
     sleep 100
     ctx.checkFile(uri)
-  except ServerError as e:
+  except RPCError as e:
     # Ignore cancellations
     if e.code != RequestCancelled:
       raise e
 
 proc requestDiagnostics(ctx: NimContext, uri: DocumentURI) =
   ## Requests the server to send diagnostics to the client
-  ctx.data[].queue.send($ sendDiagnostics.notify((uri,)).toJson())
+  var req = sendDiagnostics.call((uri,))
+  req.id = $genNanoID()
+  ctx.data[].queue.send($ req.toJson())
 
 lsp.on(changedNotification.meth) do (ctx: NimContext, textDocument: VersionedTextDocumentIdentifier, contentChanges: seq[TextDocumentContentChangeEvent]) {.gcsafe.}:
   updateFile(DidChangeTextDocumentParams(textDocument: textDocument, contentChanges: contentChanges))

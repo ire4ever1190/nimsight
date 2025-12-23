@@ -88,3 +88,5 @@ proc parseFile*(x: var FileStore, path: DocumentURI, version = NoVersion): Parse
   if data.ast.ast.isNil:
     data.ast = parseFile(path, data.content)
   return data.ast
+
+export minilru
