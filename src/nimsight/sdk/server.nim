@@ -5,7 +5,7 @@ import std/[tables, json, jsonutils, strutils, logging, strformat, options, lock
 
 import types, protocol, hooks, params, ./logging, methods
 
-import utils
+import utils, methods
 
 import threading/[channels, rwlock]
 
@@ -27,8 +27,9 @@ type
     ## Thread that runs a worker for handling requests
 
   Server* = object
-    queue*: Chan[string]
-      ## Queue of messages to process
+    queue*, orderedQueue: Chan[string]
+      ## Queue of messages to process.
+      ## We also have an ordered queue when when we don't want to reorder requests
     roots*: seq[Path]
       ## Workspace roots
     workers: seq[WorkerThread]
@@ -147,28 +148,30 @@ proc handleCalls(rpc: Executor[JsonNode, ptr Server], payload: string, server: p
       call()
   let response = calls.dump(responses)
   response.map(writeResponse)
+template makeWorkerThread(queue: untyped): untyped =
+  proc workerThread(server: ptr Server) {.nimcall, thread.} =
+    ## Initialises a worker thread and then handles messages
+    ## Implemented via a work stealing message queue
+    # Initialise the worker.
+    addHandler(newLSPLogger())
+    let rpc = server[].executor
+    # Start the worker loop
+    while true:
+      let request = server[].queue.recv()
+      # Don't process if the server is shutting down
+      if not server[].isRunning:
+        break
 
-proc workerThread(server: ptr Server) {.thread.} =
-  ## Initialises a worker thread and then handles messages
-  ## Implemented via a work stealing message queue
-  # Initialise the worker.
-  addHandler(newLSPLogger())
-  let rpc = server[].executor
-  # Start the worker loop
-  while true:
-    let request = server[].queue.recv()
-    # Don't process if the server is shutting down
-    if not server[].isRunning:
-      break
-
-    rpc.handleCalls(request, server)
+      rpc.handleCalls(request, server)
+  workerThread
 
 
 proc spawnWorkers*(server: var Server, n: int) =
   ## Spawns `n` workers
   server.workers = newSeq[WorkerThread](n)
-  for t in server.workers.mitems:
-    t.createThread(workerThread, addr server)
+  for i in 0 ..< server.workers.len - 1:
+    server.workers[i].createThread(makeWorkerThread(queue), addr server)
+  server.workers[^1].createThread(makeWorkerThread(orderedQueue), addr server)
 
 proc shutdown*(server: var Server) =
   ## Shutdowns the server.
@@ -214,18 +217,27 @@ proc poll*(server: var Server) =
     "shutdown",
     "exit"
   ]
+
+  # These are requests that we shouldn't run out of order from the client.
+  # They get placed in a special queue where everything is ordered
+  const requireOrdering = [
+    # We want to make sure updates happen in order so we are only running checks on the latest
+    changedNotification.meth,
+    openedNotification.meth,
+    savedNotification.meth
+  ]
+
   while true:
     let request = readPayload()
 
     # Very wasteful, but simpliest thing to do
-    try:
-      let handleHere = request["method"].getStr() in handleFirst
-      if handleHere:
-        server.executor.handleCalls($ request, addr server)
-        continue
-    except: discard # jaysonrpc will handle it
-
-    server.queue.send($ request)
+    let method = request{"method"}.getStr()
+    if method in handleFirst:
+      server.executor.handleCalls($ request, addr server)
+    elif method in requireOrdering:
+      server.orderedQueue.send($ request)
+    else:
+      server.queue.send($ request)
 
 func folders*(rootUri: Option[DocumentURI], rootPath: Option[Path], workspaceFolders: Option[seq[WorkspaceFolder]]): seq[Path] =
   ## Returns all the paths that are in the intialisation
