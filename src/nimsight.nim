@@ -28,9 +28,8 @@ proc updateFile(params: DidChangeTextDocumentParams) {.gcsafe.} =
     for change in params.contentChanges:
       files.put(doc.uri, change.text, doc.version)
 
-proc updateFile*(params: DidOpenTextDocumentParams) {.gcsafe.} =
+proc updateFile*(doc: TextDocumentItem) {.gcsafe.} =
   ## Updates file cache with an open item
-  let doc = params.textDocument
   fileStore.with do (files: var FileStore):
     files.put(doc.uri, doc.text, doc.version)
 
@@ -64,17 +63,20 @@ lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
     if e.code != RequestCancelled:
       raise e
 
+proc requestDiagnostics(ctx: NimContext, uri: DocumentURI) =
+  ## Requests the server to send diagnostics to the client
+  ctx.data[].queue.send($ sendDiagnostics.notify((uri,)).toJson())
 
-lsp.on(changedNotification.meth) do (ctx: NimContext, params: DidChangeTextDocumentParams) {.gcsafe.}:
-  updateFile(params)
-  ctx.data[].queue.send($ sendDiagnostics.notify((params.textDocument.uri,)).toJson())
+lsp.on(changedNotification.meth) do (ctx: NimContext, textDocument: VersionedTextDocumentIdentifier, contentChanges: seq[TextDocumentContentChangeEvent]) {.gcsafe.}:
+  updateFile(DidChangeTextDocumentParams(textDocument: textDocument, contentChanges: contentChanges))
+  ctx.requestDiagnostics(textDocument.uri)
 
-lsp.on(openedNotification.meth) do (ctx: NimContext, params: DidOpenTextDocumentParams) {.gcsafe.}:
-  updateFile(params)
-  ctx.data[].queue.send($ sendDiagnostics.notify((params.textDocument.uri,)).toJson())
+lsp.on(openedNotification.meth) do (ctx: NimContext, textDocument: TextDocumentItem) {.gcsafe.}:
+  updateFile(textDocument)
+  ctx.requestDiagnostics(textDocument.uri)
 
-lsp.on(savedNotification.meth) do (ctx: NimContext, params: DidSaveTextDocumentParams) {.gcsafe.}:
-  ctx.data[].queue.send($ sendDiagnostics.notify((params.textDocument.uri,)).toJson())
+lsp.on(savedNotification.meth) do (ctx: NimContext, textDocument: VersionedTextDocumentIdentifier) {.gcsafe.}:
+  ctx.requestDiagnostics(textDocument.uri)
 
 lsp.on(selectionRange.meth) do (ctx: NimContext, params: SelectionRangeParams) -> seq[SelectionRange] {.gcsafe.}:
   fileStore.with do (files: var FileStore) -> seq[SelectionRange]:
@@ -85,13 +87,17 @@ lsp.on(selectionRange.meth) do (ctx: NimContext, params: SelectionRangeParams) -
       if node.isSome():
         result &= root.toSelectionRange(node.unsafeGet())
 
-lsp.on(codeAction.meth) do (ctx: NimContext, params: CodeActionParams) -> seq[CodeAction] {.gcsafe.}:
+lsp.on(codeAction.meth) do (ctx: NimContext, textDocument: TextDocumentIdentifier, range: Range, context: CodeActionContext) -> seq[CodeAction] {.gcsafe.}:
   # Find the node that the params are referring to
   fileStore.with do (files: var FileStore) -> seq[CodeAction]:
-    return getCodeActions(ctx, files, params)
+    return getCodeActions(ctx, files, CodeActionParams(
+      textDocument: textDocument,
+      range: range,
+      context: context
+    ))
 
-lsp.on(symbolDefinition.meth) do (ctx: NimContext, params: TextDocumentPositionParams) -> Option[Location] {.gcsafe.}:
-  let usages = ctx.findUsages(params.textDocument.uri, params.position)
+lsp.on(symbolDefinition.meth) do (ctx: NimContext, textDocument: TextDocumentIdentifier, position: Position) -> Option[Location] {.gcsafe.}:
+  let usages = ctx.findUsages(textDocument.uri, position)
   if usages.isSome():
     let usages = usages.unsafeGet()
     return some Location(
@@ -110,7 +116,7 @@ lsp.on(documentSymbols.meth) do (
   fileStore.with do (files: var FileStore) -> seq[DocumentSymbol]:
     return files.parseFile(params.textDocument.uri).ast.getPtr(NodeIdx(0)).outLineDocument()
 
-lsp.on(initialized.meth) do (ctx: NimContext, params: InitializedParams):
+lsp.on(initialized.meth) do (ctx: NimContext):
   logging.info("Client initialised")
   # Check that if there is a nimble.lock file, there is a nimble.paths file.
   # This stops the issue of wondering why nim check is complaining about not

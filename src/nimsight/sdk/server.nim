@@ -227,6 +227,18 @@ proc poll*(server: var Server) =
 
     server.queue.send($ request)
 
+func folders*(rootUri: Option[DocumentURI], rootPath: Option[Path], workspaceFolders: Option[seq[WorkspaceFolder]]): seq[Path] =
+  ## Returns all the paths that are in the intialisation
+  # Root URI has precedence over rootPath
+  if rootUri.isSome():
+    result &= rootUri.unsafeGet().path
+  elif rootPath.isSome():
+    result &= rootPath.unsafeGet()
+
+  for folder in workspaceFolders.get(@[]):
+    result &= folder.uri.path
+
+
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers
   ## some needed handlers to make helpers work
@@ -237,7 +249,13 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     queue: newChan[string](),
   )
 
-  result.on("initialize") do (params: InitializeParams, ctx: NimContext) -> InitializeResult:
+  result.on("initialize") do (
+      ctx: NimContext,
+      processId: Option[int],
+      rootPath: Option[Path],
+      rootUri: Option[DocumentURI],
+      workspaceFolders: Option[seq[WorkspaceFolder]]
+    ) -> InitializeResult:
     # Find what is supported depending on what handlers are registered.
     # Some manual capabilities will also need to be added
     result = InitializeResult(
@@ -256,10 +274,10 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
       )
     )
     # add all the roots
-    ctx.data[].roots = params.folders
+    ctx.data[].roots = folders(rootUri, rootPath, workspaceFolders)
 
     # Add a listener for the parent process
-    if params.processId.isSome:
-      t.createThread(checkProcess, (ctx.data, params.processId.unsafeGet))
+    if processId.isSome:
+      t.createThread(checkProcess, (ctx.data, processId.unsafeGet))
 
 export hooks, jaysonrpc

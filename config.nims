@@ -4,6 +4,7 @@ switch("d", "nimsuggest") # To get endInfo on nodes
 switch("mm", "atomicArc")
 warning("Uninit", off)
 warning("ProveInit", off)
+switch("d", "jaysonrpc.allowExtraArguments")
 
 proc warningAsError(error: string) =
   switch("warningAsError", error)

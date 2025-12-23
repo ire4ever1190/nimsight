@@ -139,14 +139,3 @@ type
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentPositionParams)
     textDocument*: TextDocumentIdentifier
     position*: Position
-
-func folders*(params: InitializeParams): seq[Path] =
-  ## Returns all the paths that are in the intialisation
-  # Root URI has precedence over rootPath
-  if params.rootUri.isSome():
-    result &= params.rootUri.unsafeGet().path
-  elif params.rootPath.isSome():
-    result &= params.rootPath.unsafeGet()
-
-  for folder in params.workspaceFolders.get(@[]):
-    result &= folder.uri.path
