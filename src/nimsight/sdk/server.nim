@@ -156,7 +156,9 @@ template makeWorkerThread(queue: untyped): untyped =
     addHandler(newLSPLogger())
     let rpc = server[].executor
     # Start the worker loop
+    info "Starting worker thread for " & astToStr(queue)
     while true:
+      debug server[].orderedQueue.peek
       let request = server[].queue.recv()
       # Don't process if the server is shutting down
       if not server[].isRunning:
@@ -231,10 +233,10 @@ proc poll*(server: var Server) =
     let request = readPayload()
 
     # Very wasteful, but simpliest thing to do
-    let method = request{"method"}.getStr()
-    if method in handleFirst:
+    let meth = request{"method"}.getStr()
+    if meth in handleFirst:
       server.executor.handleCalls($ request, addr server)
-    elif method in requireOrdering:
+    elif meth in requireOrdering:
       server.orderedQueue.send($ request)
     else:
       server.queue.send($ request)
@@ -259,6 +261,7 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     version: version,
     executor: initExecutor[JsonNode, ptr Server](),
     queue: newChan[string](),
+    orderedQueue: newChan[string](),
   )
 
   result.on("initialize") do (

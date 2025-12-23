@@ -23,6 +23,8 @@ var fileStore = protectReadWrite(initFileStore(20)) # TODO: Make this configurab
 proc updateFile(params: DidChangeTextDocumentParams) {.gcsafe.} =
   ## Updates file cache with updates
   let doc = params.textDocument
+  debug fmt"Updating {doc.uri} in cache"
+
   assert params.contentChanges.len <= 1, "Only full updates are supported"
   fileStore.with do (files: var FileStore):
     for change in params.contentChanges:
@@ -30,6 +32,8 @@ proc updateFile(params: DidChangeTextDocumentParams) {.gcsafe.} =
 
 proc updateFile*(doc: TextDocumentItem) {.gcsafe.} =
   ## Updates file cache with an open item
+
+  debug fmt"Adding {doc.uri} to cache"
   fileStore.with do (files: var FileStore):
     files.put(doc.uri, doc.text, doc.version)
 

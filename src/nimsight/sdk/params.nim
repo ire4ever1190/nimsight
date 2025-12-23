@@ -48,7 +48,7 @@ type
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeActionContext)
     diagnostics*: seq[Diagnostic]
     only: Option[seq[CodeActionKind]]
-    triggerKind*: CodeActionTriggerKind
+    triggerKind*: Option[CodeActionTriggerKind]
 
   CodeActionParams* = ref object # TODO: Make a mixin macro for crap like this
     ## [See spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeActionParams)
