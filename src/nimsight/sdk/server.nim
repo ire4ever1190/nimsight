@@ -185,8 +185,11 @@ proc shutdown*(server: var Server) =
 
   # Send a shutdown message. Each worker needs to read a message
   # so that it checks the running flag again.
-  # for _ in 0..server.workers.high:
-    # server.queue(knockoff.init())
+  for _ in 0..server.workers.high:
+    server.queue.send("")
+  # Shutdown the ordered queue also
+  server.orderedQueue.send("")
+
   # And make sure every thread stops.
   # Don't join the current thread
   joinThreads(server.workers)

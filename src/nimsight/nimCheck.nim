@@ -174,15 +174,12 @@ proc execProcess*(ctx: NimContext, cmd: string, args: openArray[string], input =
   return (process.outputStream().readAll(), process.peekExitCode())
 
 
-proc getErrors*(ctx: NimContext, file: NimFile, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
+proc getErrors*(ctx: NimContext, content: string, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
-  # See if we can get errors from the cache
-  if file.ranCheck: return file.errors
-  # If not, then run the compiler to get the messages
   let (outp, _) = ctx.execProcess(
     "nim",
     @["check"] & ourOptions & makeOptions(x) & "-",
-    input=file.content,
+    input=content,
     workingDir = $x.path.parentDir()
   )
 
@@ -191,11 +188,6 @@ proc getErrors*(ctx: NimContext, file: NimFile, x: DocumentUri): seq[ParsedError
       let err = chunk.parseError()
       if err.location.file == x.path:
         err
-
-  # Store the errors in the cache
-  file.errors = result
-  file.ranCheck = true
-
 
 proc toDiagnostics*(
   errors: openArray[ParsedError],
@@ -229,8 +221,7 @@ proc toDiagnostics*(
     )
 
 
-proc getDiagnostics*(ctx: NimContext, files: var FileStore, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
+proc getDiagnostics*(ctx: NimContext, contents: string, root: Tree, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
   ## Returns all the diagnostics for a document.
   ## Mainly just converts the stored errors into Diagnostics
-  let root = files.parseFile(x).ast
-  ctx.getErrors(files.rawGet(x), x).toDiagnostics(root)
+  ctx.getErrors(contents, x).toDiagnostics(root)

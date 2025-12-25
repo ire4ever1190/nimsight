@@ -42,7 +42,7 @@ proc fixError(
   let uri = params.textDocument.uri
   # Lookup the nodes for each error
   let mappedErrors = collect:
-    for error in ctx.getErrors(files.rawGet(uri), uri):
+    for error in ctx.getErrors(files.rawGet(uri).content, uri):
       let node = ast.findNode(error.location)
       if node.isSome():
         (error, ast.getPtr(node.unsafeGet()))

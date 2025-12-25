@@ -18,6 +18,7 @@ type
 
 using s: var Server
 
+# TODO: Only escalate to a write lock if needed, lot of the time we can get away with a read lock
 var fileStore = protectReadWrite(initFileStore(20)) # TODO: Make this configurable
 
 proc updateFile(params: DidChangeTextDocumentParams) {.gcsafe.} =
@@ -39,13 +40,25 @@ proc updateFile*(doc: TextDocumentItem) {.gcsafe.} =
 
 proc checkFile(ctx: NimContext, uri: DocumentUri) {.gcsafe.} =
   ## Publishes `nim check` dianostics
-  fileStore.with do (files: var FileStore):
-    let diagnostics = ctx.getDiagnostics(files, uri)
+  # Only establish the lock for getting the contents, lots of things need it
+  let (content, root) = fileStore.with do (files: var FileStore) -> (string, Tree):
+    let
+      root = files.parseFile(uri).ast
+      file = files.rawGet(uri)
+    # TODO: add back caching
+    # if file.ranCheck: return file.errors.toDiagnostics(root)
+    return (file.content, root)
 
-    sendNotification(publishDiagnostics, PublishDiagnosticsParams(
-      uri: uri,
-      diagnostics: diagnostics
-    ))
+  let diagnostics = ctx.getDiagnostics(content, root, uri)
+    # Store the errors in the cache
+    # if not file.ranCheck and false:
+    #   file.errors = result
+    #   file.ranCheck = true
+
+  sendNotification(publishDiagnostics, PublishDiagnosticsParams(
+    uri: uri,
+    diagnostics: diagnostics
+  ))
 
 addHandler(newLSPLogger())
 
@@ -111,16 +124,28 @@ lsp.on(codeAction.meth) do (ctx: NimContext, textDocument: TextDocumentIdentifie
     ))
 
 lsp.on(symbolDefinition.meth) do (ctx: NimContext, textDocument: TextDocumentIdentifier, position: Position) -> Option[Location] {.gcsafe.}:
-  let usages = ctx.findUsages(textDocument.uri, position)
-  if usages.isSome():
-    let usages = usages.unsafeGet()
-    return some Location(
-      uri: DocumentURI("file://" & usages.def[0]),
-      range: Range(
-        start: usages.def[1],
-        `end`: Position(line: usages.def[1].line, character: usages.def[1].character + 1)
+  # See if we can find a unique symbol in the outline
+  let (document, nodeUnder) = fileStore.with do (files: var FileStore) -> (Tree, Option[NodeIdx]):
+      # Build AST and find the node the user is pointing at
+      let document = files.parseFile(textDocument.uri).ast
+      return (document, document[].findNode(position))
+
+  if nodeUnder.isNone(): return none(Location)
+
+  # Check if the node is an identifier
+  let foundNode = document[nodeUnder.unsafeGet()]
+  if foundNode.kind != nkIdent: return none(Location)
+
+  let targetName = foundNode.strVal.nimIdentNormalize()
+
+  # Now search the outline, and return the first match
+  let outline = document.getPtr(NodeIdx(0)).outLineDocument()
+  for symbol in outline:
+    if symbol.name.nimIdentNormalize() == targetName:
+      return some Location(
+        uri: textDocument.uri,
+        range: symbol.selectionRange
       )
-    )
 
 
 lsp.on(documentSymbols.meth) do (

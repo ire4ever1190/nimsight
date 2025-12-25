@@ -26,9 +26,11 @@ proc runTest(inputFile: string): string =
   # Wait for it to exit, then read the output
   let exitCode = p.waitForExit(10000)
   checkpoint fmt"Finished with exitcode {exitCode}"
+
   let output = p.outputStream().readAll()
   result = output.replace("<====>", "\n")
   checkpoint result
+
   assert exitCode == QuitSuccess, $exitCode
   # We also want to check the output file (if applicable)
   if Path(inputFile).changeFileExt("expected").fileExists:
