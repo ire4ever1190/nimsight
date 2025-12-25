@@ -6,7 +6,7 @@ import nimsight/[nimCheck, customast, codeActions, files, utils]
 
 import nimsight/utils/locks
 
-import std/[locks, os]
+import std/os
 
 import pkg/threading/[rwlock, channels]
 import pkg/[jaysonrpc, anano]
@@ -54,7 +54,7 @@ proc checkFile(ctx: NimContext, uri: DocumentUri) {.gcsafe.} =
     # if not file.ranCheck and false:
     #   file.errors = result
     #   file.ranCheck = true
-
+  debug fmt"Got {diagnostics.len} diagnostics"
   sendNotification(publishDiagnostics, PublishDiagnosticsParams(
     uri: uri,
     diagnostics: diagnostics

@@ -4,7 +4,7 @@ import std/[osproc, strformat, options, sugar, os, streams, paths, logging]
 import sdk/[types, hooks, server, params]
 
 import utils/ast
-import customast, errors, files
+import customast, errors
 
 import "$nim"/compiler/ast
 
@@ -171,7 +171,10 @@ proc execProcess*(ctx: NimContext, cmd: string, args: openArray[string], input =
     process.kill()
     discard process.waitForExit()
     ctx.raiseCancelled()
-  return (process.outputStream().readAll(), process.peekExitCode())
+
+  let output = process.outputStream().readAll()
+  debug fmt"Finished with exitcode {process.peekExitCode()}"
+  return (output, process.peekExitCode())
 
 
 proc getErrors*(ctx: NimContext, content: string, x: DocumentUri): seq[ParsedError] {.gcsafe.} =

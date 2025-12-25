@@ -10,7 +10,7 @@ import errors, customast
 import pkg/minilru
 export minilru
 
-import std/[strformat, options]
+import std/strformat
 
 
 const NoVersion* = -1
