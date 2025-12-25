@@ -22,7 +22,7 @@ proc getObjectIdents(x: TreeView, idx: NodeIdx, idents: var seq[NodeIdx]) =
       getObjectIdents(x, child, idents)
 
 proc makeFieldsPublic*(
-  handle: RequestHandle,
+  _: NimContext,
   files: var FileStore,
   params: CodeActionParams,
   ast: Tree,

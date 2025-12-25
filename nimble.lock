@@ -1,14 +1,46 @@
 {
   "version": 2,
   "packages": {
+    "anano": {
+      "version": "0.2.1",
+      "vcsRevision": "2534c8fc60f463fd7f9573ce235c0c07f632af45",
+      "url": "https://github.com/ire4ever1190/anano",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "bc5242cbfd4feb63779f33d6d433d0a65b7dca75"
+      }
+    },
+    "threading": {
+      "version": "0.2.1",
+      "vcsRevision": "c5a39a039f24d48ba9503dcb9a0aee68a0fbb36d",
+      "url": "https://github.com/nim-lang/threading",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "6904743cf079e9715f15a1e9e84c8187113ce1f4"
+      }
+    },
+    "jaysonrpc": {
+      "version": "0.1.0",
+      "vcsRevision": "0f1f4fc64f8824e413a7757128397de0a60b9c73",
+      "url": "https://github.com/ire4ever1190/jaysonrpc",
+      "downloadMethod": "git",
+      "dependencies": [
+        "threading"
+      ],
+      "checksums": {
+        "sha1": "45db237c56ca92423b167a645d8e056728381eae"
+      }
+    },
     "results": {
-      "version": "0.5.0",
-      "vcsRevision": "57b2392ad69849e3e2d02b74a8a0feee2c3d9570",
+      "version": "0.5.1",
+      "vcsRevision": "df8113dda4c2d74d460a8fa98252b0b771bf1f27",
       "url": "https://github.com/arnetheduck/nim-results",
       "downloadMethod": "git",
       "dependencies": [],
       "checksums": {
-        "sha1": "901e2ed088160fdcb8fdf3b315ce62baedc3f7ba"
+        "sha1": "a9c011f74bc9ed5c91103917b9f382b12e82a9e7"
       }
     },
     "unittest2": {
@@ -32,16 +64,6 @@
       ],
       "checksums": {
         "sha1": "9f200310ac8455e07e6d3a9d1b4088677cb63603"
-      }
-    },
-    "threading": {
-      "version": "0.2.0",
-      "vcsRevision": "c69e13aeb9127cdf8519b07e3f270eada34eee5d",
-      "url": "https://github.com/nim-lang/threading",
-      "downloadMethod": "git",
-      "dependencies": [],
-      "checksums": {
-        "sha1": "1bb1be822a989a8b56bd86c4e1117367426f1b67"
       }
     }
   },

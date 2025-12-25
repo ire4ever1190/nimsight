@@ -5,15 +5,13 @@ import std/[tables, json, jsonutils, strutils, logging, strformat, options, lock
 
 import types, protocol, hooks, params, ./logging, methods
 
-import utils
+import utils, methods
 
 import threading/[channels, rwlock]
-#
-type
-  Handler* = proc (handle: RequestHandle, x: JsonNode): Option[JsonNode] {.gcsafe.}
-    ## Handler for a method. Uses JsonNode to perform type elision,
-    ## gets converted into approiate types inside
 
+import pkg/jaysonrpc
+
+type
   ResponseTable* = object
     ## Central location for waiting on responses to messages
     ## sent to the client
@@ -29,17 +27,9 @@ type
     ## Thread that runs a worker for handling requests
 
   Server* = object
-    listeners: Table[string, Handler]
-    queue: Chan[Message]
-      ## Queue of messages to process
-    inProgressLock: RwLock
-      ## Lock on the in progress table
-    inProgress {.guard: inProgressLock.}: Table[string, bool]
-      ## Table of request ID to whether they have been cancelled or not.
-      ## i.e. if the value is false, then the request has been cancelled by the server.
-      ## It is the request handlers just to check this on a regular basis.
-    running: Atomic[bool]
-      ## Tracks if the server is shutting down or not
+    queue*, orderedQueue: Chan[string]
+      ## Queue of messages to process.
+      ## We also have an ordered queue when when we don't want to reorder requests
     roots*: seq[Path]
       ## Workspace roots
     workers: seq[WorkerThread]
@@ -48,13 +38,13 @@ type
     results*: ResponseTable
     name*: string
     version*: string
+    executor: Executor[JsonNode, ptr Server]
 
-  RequestHandle* = object
-    ## Handle to a request. Used for getting information
-    id: Option[string]
-      ## ID of the request
-    server*: ptr Server
-      ## Pointer to the server. Please don't touch (I'm trusting you)
+  NimContext* = Context[ptr Server]
+
+# Extra error codes for LSP
+const
+  RequestCancelled* = RPCErrorCode(-32800)
 
 proc id(x: Message): Option[string] =
   ## Returns the ID of a message if it has one (Is a request, and ID is not null).
@@ -64,23 +54,9 @@ proc id(x: Message): Option[string] =
     if msg.id.isSome() and msg.id.unsafeGet().kind != JNull:
       return some $msg.id.unsafeGet()
 
-func id*(h: RequestHandle): Option[string] {.inline.} = h.id
-# proc server*(x: RequestHandle): ptr Server {.inline.} = x.server
-
-proc initHandle*(id: Option[string], s: ptr Server): RequestHandle =
-  RequestHandle(id: id, server: s)
-
-proc isRunning*(r: RequestHandle): bool =
-  ## Returns true if the request **should** still be running.
-  ## i.e. if this is false then the request has been cancelled
-  # Notifications can't really be cancelled
-  if r.id.isNone(): return true
-  # Check the table
-  readWith r.server[].inProgressLock:
-    # The ID should never be removed until the request is removed from the server
-    return r.server[].inProgress[r.id.unsafeGet()]
-
-proc isRunning*(s: var Server): bool {.inline.} = s.running.load()
+func isRunning*(server: var Server): bool =
+  ## Checks if server is still considered running
+  return server.executor.isRunning()
 
 const NimblePkgVersion {.strdefine.} = "Unknown"
   ## Nimble defines this when building a project. Default the server
@@ -158,144 +134,72 @@ proc showMessageRequest*[T: enum](
   if resp.isSome():
     return parseEnum[T](resp.unsafeGet()).some()
 
-proc addHandler(server: var Server, event: string, handler: Handler) =
-  ## Internal method for adding handler.
-  ## Should only be called in the main thread (We don't lock the listeners)
-  server.listeners[event] = handler
-
-
-type ListenHandler[P, R] = proc (r: RequestHandle, param: P): R
-
-proc listen*[P, R, N](server: var Server, msg: RPCMessage[P, R, N], handler: ListenHandler[P, R]) =
+proc on*(server: var Server, meth: string, handler: proc) =
   ## Adds a handler for an event
-  proc inner(handle: RequestHandle, x: JsonNode): Option[JsonNode] {.stacktrace: off, gcsafe.} =
-    ## Conversion of the JSON and catching any errors.
-    let data = try:
-        x.jsonTo(P, JOptions(allowMissingKeys: true, allowExtraKeys: true))
-      except CatchableError as e:
-        error fmt"Got invalid JSON for {$P}: {x}"
-        raise (ref ServerError)(code: InvalidParams, msg: e.msg, data: x)
-    try:
-      when R is not void:
-        let ret = handler(handle, data)
-        {.gcsafe.}:
-          return some ret.toJson()
-      elif N:
-        handler(handle, data)
-        return none(JsonNode)
-      else:
-        handler(handle, data)
-        return some newJNull()
-    except ServerError:
-      # Bubble it up, will be handled later
-      raise
-    except Exception as e:
-      let entries = collect:
-        for entry in e.getStacktraceEntries():
-         fmt"{entry.filename}:{entry.line} {entry.procName}"
-      raise (ref ServerError)(code: RequestFailed, msg: e.msg, data: %* entries)
+  server.executor.on(meth, handler)
 
-  server.addHandler(msg.meth, inner)
 
-proc meth(x: Message): string =
-  case x
-  of RequestMessage, NotificationMessage:
-    x.`method`
-  else:
-    ""
+proc handleCalls(rpc: Executor[JsonNode, ptr Server], payload: string, server: ptr Server) =
+  ## Executes all the calls synchronously and sends a response
+  ## LSP forbids batch calls, so there will never be more than 1
+  let calls = rpc.getCalls(payload, server)
+  let responses = collect:
+    for call in calls:
+      call()
+  let response = calls.dump(responses)
+  response.map(writeResponse)
+template makeWorkerThread(queue: untyped): untyped =
+  proc workerThread(server: ptr Server) {.nimcall, thread.} =
+    ## Initialises a worker thread and then handles messages
+    ## Implemented via a work stealing message queue
+    # Initialise the worker.
+    addHandler(newLSPLogger())
+    let rpc = server[].executor
+    # Start the worker loop
+    info "Starting worker thread for " & astToStr(queue)
+    while true:
+      let request = server[].queue.recv()
+      # Don't process if the server is shutting down
+      if not server[].isRunning:
+        break
 
-proc params(x: Message): JsonNode =
-  case x
-  of RequestMessage: x.params
-  of NotificationMessage:
-    x.params.get(newJNull())
-  else:
-    newJNull()
+      rpc.handleCalls(request, server)
+  workerThread
 
-proc updateRequestRunning(s: var Server, id: string, val: bool) =
-  ## Updates the request running statusmi
-  writeWith s.inProgressLock:
-    s.inProgress[$id] = val
-
-proc workerThread(server: ptr Server) {.thread.} =
-  ## Initialises a worker thread and then handles messages
-  ## Implemented via a work stealing message queue
-  # Initialise the worker.
-  addHandler(newLSPLogger())
-  # Start the worker loop
-  while true:
-    let request = server[].queue.recv()
-    # Don't process if the server is shutting down
-    if not server[].isRunning: break
-
-    let id = request.id
-    # TODO: Break this out into a generic handleMessage() proc
-    # We are only reading this so it should be fine right??
-    if request of ResponseMessage:
-      let resp = ResponseMessage(request)
-      server[].results.put($resp.id, resp.`result`.unsafeGet)
-      continue
-
-    if request.meth in server[].listeners:
-      let
-        handler = server[].listeners[request.meth]
-        handle = initHandle(id, server)
-      try:
-        let returnVal = handler(handle, request.params)
-        if returnVal.isSome() and id.isSome():
-          request.respond(returnVal.unsafeGet())
-      except ServerError as e:
-        debug("Failed: ", e.msg)
-        request.respond(e[])
-    else:
-      request.respond(ServerError(code: MethodNotFound, msg: fmt"Nothing to handle {request.meth}"))
-    # Remove the request from the in-progress list.
-    if id.isSome:
-      writeWith server[].inProgressLock:
-        server[].inProgress.del(id.unsafeGet())
 
 proc spawnWorkers*(server: var Server, n: int) =
   ## Spawns `n` workers
   server.workers = newSeq[WorkerThread](n)
-  for t in server.workers.mitems:
-    t.createThread(workerThread, addr server)
-
-proc queue*(server: var Server, msg: sink Message) =
-  ## Queues a request to be handled by the server
-  let id = msg.id
-  if id.isSome():
-    # Register request with server so it can be tracked
-    server.updateRequestRunning($id.unsafeGet(), true)
-  # Start running the message
-  server.queue.send(unsafeIsolate(ensureMove(msg)))
+  for i in 0 ..< server.workers.len - 1:
+    server.workers[i].createThread(makeWorkerThread(queue), addr server)
+  server.workers[^1].createThread(makeWorkerThread(orderedQueue), addr server)
 
 proc shutdown*(server: var Server) =
   ## Shutdowns the server.
   ## - Signals that each worker should stop processing
   ## - Waits for all worker threads to finish
   ## Cannot be called on any worker thread (it will deadlock)
-  # First notify all workers that they need to shutdown.
-  server.running.store(false)
-  writeWith server.inProgressLock:
-    for running in server.inProgress.mvalues:
-      running = false
+
+  # Everything start gracefully shutting down
+  server.executor.shutdown()
+
   # Send a shutdown message. Each worker needs to read a message
   # so that it checks the running flag again.
   for _ in 0..server.workers.high:
-    server.queue(knockoff.init())
+    server.queue.send("")
+  # Shutdown the ordered queue also
+  server.orderedQueue.send("")
+
   # And make sure every thread stops.
   # Don't join the current thread
   joinThreads(server.workers)
-
-proc cancel*(server: var Server, id: string) =
-  ## Cancels a request in the server
-  server.updateRequestRunning(id, false)
 
 type Args = tuple[server: ptr Server, pid: int]
 var t: Thread[Args]
 proc checkProcess(args: Args) {.thread.} =
   ## Runs a check every 10 seconds that the process passed is still running.
-  ## Shutdowns the server if it closes
+  ## Shutdowns the server if it closes.
+  ## This is used to make sure we close after the parent editor closes
   let (server, pid) = args
   while pid.isRunning():
     sleep 10 * 1000
@@ -309,45 +213,66 @@ proc poll*(server: var Server) =
   #       e.g. content change events NEED to be applied in order for incremental sync
   # TODO: Add way to configure number of workers
   server.spawnWorkers(3)
+  # Some methods we want to handle without needing the queue. Mainly so they can be handled
+  # if all the workers and full and server is going haywire
+  # List them here, and execute here instead of sending them to workers
+  const handleFirst = [
+    "$/cancelRequest",
+    "shutdown",
+    "exit"
+  ]
+
+  # These are requests that we shouldn't run out of order from the client.
+  # They get placed in a special queue where everything is ordered
+  const requireOrdering = [
+    # We want to make sure updates happen in order so we are only running checks on the latest
+    changedNotification.meth,
+    openedNotification.meth,
+    savedNotification.meth
+  ]
 
   while true:
-    let request = readRequest()
-    if request of RequestMessage:
-      info "Calling method: ", RequestMessage(request).`method`
+    let request = readPayload()
 
-    # Few get special cased since we want them handled no matter what.
-    # Rest get sent into worker queue
-    case request.meth
-    of "$/cancelRequest":
-      # We special case handling $/cancelRequest since the worker queue
-      # could be filled up which means the cancelRequest wouldn't get handled
-      info "Cancelling ", request.params["id"]
-      server.cancel($request.params["id"])
-    of "shutdown":
-      info "Shutting down"
-      server.shutdown()
-      request.respond(newJNull())
-    of "exit":
-      quit int(server.isRunning)
+    # Very wasteful, but simpliest thing to do
+    let meth = request{"method"}.getStr()
+    if meth in handleFirst:
+      server.executor.handleCalls($ request, addr server)
+    elif meth in requireOrdering:
+      server.orderedQueue.send($ request)
     else:
-      # Spec says we should error if shutting down
-      if server.isRunning:
-        server.queue(request)
-      else:
-        request.respond(ServerError(code: InvalidRequest, msg: "Server is shutting down"))
+      server.queue.send($ request)
+
+func folders*(rootUri: Option[DocumentURI], rootPath: Option[Path], workspaceFolders: Option[seq[WorkspaceFolder]]): seq[Path] =
+  ## Returns all the paths that are in the intialisation
+  # Root URI has precedence over rootPath
+  if rootUri.isSome():
+    result &= rootUri.unsafeGet().path
+  elif rootPath.isSome():
+    result &= rootPath.unsafeGet()
+
+  for folder in workspaceFolders.get(@[]):
+    result &= folder.uri.path
+
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers
   ## some needed handlers to make helpers work
   result = Server(
     name: name,
-    inProgressLock: createRwLock(),
     version: version,
-    queue: newChan[Message](),
+    executor: initExecutor[JsonNode, ptr Server](),
+    queue: newChan[string](),
+    orderedQueue: newChan[string](),
   )
-  result.running.store(true)
 
-  result.listen(initialize) do (r: RequestHandle, params: InitializeParams) -> InitializeResult:
+  result.on("initialize") do (
+      ctx: NimContext,
+      processId: Option[int],
+      rootPath: Option[Path],
+      rootUri: Option[DocumentURI],
+      workspaceFolders: Option[seq[WorkspaceFolder]]
+    ) -> InitializeResult:
     # Find what is supported depending on what handlers are registered.
     # Some manual capabilities will also need to be added
     result = InitializeResult(
@@ -362,15 +287,15 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
         selectionRangeProvider: true
       ),
       serverInfo: ServerInfo(
-        name: r.server[].name,
-        version: some(r.server[].version)
+        name: ctx.data[].name,
+        version: some(ctx.data[].version)
       )
     )
     # add all the roots
-    r.server[].roots = params.folders
+    ctx.data[].roots = folders(rootUri, rootPath, workspaceFolders)
 
     # Add a listener for the parent process
-    if params.processId.isSome:
-      t.createThread(checkProcess, (r.server, params.processId.unsafeGet))
+    if processId.isSome:
+      t.createThread(checkProcess, (ctx.data, processId.unsafeGet))
 
-export hooks
+export hooks, jaysonrpc

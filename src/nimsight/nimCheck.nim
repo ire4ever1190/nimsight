@@ -4,7 +4,7 @@ import std/[osproc, strformat, options, sugar, os, streams, paths, logging]
 import sdk/[types, hooks, server, params]
 
 import utils/ast
-import customast, errors, files
+import customast, errors
 
 import "$nim"/compiler/ast
 
@@ -140,13 +140,13 @@ type
     def*: (string, Position)
     usages*: seq[(string, Position)]
 
-proc raiseCancelled() {.raises: [ServerError].} =
-    raise (ref ServerError)(code: RequestCancelled)
+proc raiseCancelled(ctx: NimContext) {.raises: [RPCError].} =
+    raise (ref RPCError)(code: RequestCancelled, id: ctx.id)
 
-proc execProcess*(handle: RequestHandle, cmd: string, args: openArray[string], input = "", workingDir=""): tuple[output: string, code: int] =
+proc execProcess*(ctx: NimContext, cmd: string, args: openArray[string], input = "", workingDir=""): tuple[output: string, code: int] =
   ## Runs a process, automatically checks if the request has ended and then stops the running process.
   # Don't start a process if the handle is already cancelled
-  if not handle.isRunning(): raiseCancelled()
+  if ctx.isCancelled(): ctx.raiseCancelled()
 
   debug(fmt"Running `{cmd}` with args {args} in '{workingDir}'")
 
@@ -163,25 +163,26 @@ proc execProcess*(handle: RequestHandle, cmd: string, args: openArray[string], i
     process.inputStream().write(input)
   close inputStream(process)
 
-  while process.running and handle.isRunning:
+  while process.running and not ctx.isCancelled:
     # Don't want to burn the thread with the isRunning check
     sleep 10
-  if not handle.isRunning():
+  if ctx.isCancelled():
     # TODO: Let the caller handle it, for now we play it simple
     process.kill()
     discard process.waitForExit()
-    raiseCancelled()
-  return (process.outputStream().readAll(), process.peekExitCode())
+    ctx.raiseCancelled()
 
-proc getErrors*(handle: RequestHandle, file: NimFile, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
+  let output = process.outputStream().readAll()
+  debug fmt"Finished with exitcode {process.peekExitCode()}"
+  return (output, process.peekExitCode())
+
+
+proc getErrors*(ctx: NimContext, content: string, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
-  # See if we can get errors from the cache
-  if file.ranCheck: return file.errors
-  # If not, then run the compiler to get the messages
-  let (outp, _) = handle.execProcess(
+  let (outp, _) = ctx.execProcess(
     "nim",
     @["check"] & ourOptions & makeOptions(x) & "-",
-    input=file.content,
+    input=content,
     workingDir = $x.path.parentDir()
   )
 
@@ -190,11 +191,6 @@ proc getErrors*(handle: RequestHandle, file: NimFile, x: DocumentUri): seq[Parse
       let err = chunk.parseError()
       if err.location.file == x.path:
         err
-
-  # Store the errors in the cache
-  file.errors = result
-  file.ranCheck = true
-
 
 proc toDiagnostics*(
   errors: openArray[ParsedError],
@@ -228,8 +224,7 @@ proc toDiagnostics*(
     )
 
 
-proc getDiagnostics*(handle: RequestHandle, files: var FileStore, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
+proc getDiagnostics*(ctx: NimContext, contents: string, root: Tree, x: DocumentUri): seq[Diagnostic] {.gcsafe.} =
   ## Returns all the diagnostics for a document.
   ## Mainly just converts the stored errors into Diagnostics
-  let root = files.parseFile(x).ast
-  handle.getErrors(files.rawGet(x), x).toDiagnostics(root)
+  ctx.getErrors(contents, x).toDiagnostics(root)

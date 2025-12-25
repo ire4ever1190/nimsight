@@ -6,7 +6,7 @@ import "$nim"/compiler/[lexer, llstream, pathutils, idents, options]
 
 type
   CodeActionProvider = proc (
-    handle: RequestHandle,
+    ctx: NimContext,
     files: var FileStore,
     params: CodeActionParams,
     ast: Tree,
@@ -21,7 +21,7 @@ proc registerProvider*(x: CodeActionProvider) =
   ## Registers a provider that will be queired by [getCodeActions].
   providers &= x
 
-proc getCodeActions*(h: RequestHandle, files: var FileStore, params: CodeActionParams): seq[CodeAction] =
+proc getCodeActions*(ctx: NimContext, files: var FileStore, params: CodeActionParams): seq[CodeAction] =
   ## Returns all code actions that apply to a code action request.
   # First find the node that action is referring to
   let root = files.parseFile(params.textDocument.uri)
@@ -32,9 +32,8 @@ proc getCodeActions*(h: RequestHandle, files: var FileStore, params: CodeActionP
 
   # Now run every provider, getting the list of actions
   {.gcsafe.}:
-    debug "Running providers: ", len(providers)
     for provider in providers:
-      result &= provider(h, files, params, root.ast, node.unsafeGet())
+      result &= provider(ctx, files, params, root.ast, node.unsafeGet())
 
 proc newLexer(content: sink string): Lexer =
   ## Creates a new lexer for `content`
@@ -102,4 +101,3 @@ proc minimiseChanges*(file, newContent: string, line, col: int): string =
 
   while uLexer.next().tokType != tkEof:
     result &= uLexer.spacing & $uLexer.peek()
-
