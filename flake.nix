@@ -38,14 +38,15 @@
           '';
 
           installPhase = ''
-            mv nimbledeps $out
+            mkdir -p $out
+            mv nimbledeps $out/
             echo "[]" > $out/packages_official.json
             find $out -type f -exec sha256sum {} \;
           '';
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-IkNAhTI9dJQ9R4lxzVsL8pVa+EZyRRxDVN5pc4jcioI=";
+          outputHash = "sha256-YMXN3cZFrtpCTX/1Iy1evUGBHkomFCPonRd3kAtC0ps=";
         };
       in
       {
@@ -71,7 +72,7 @@
             export HOME=$(mktemp -d)
 
             # Copy into a temp directory we can write to
-            cp -r ${deps} nimbledeps
+            cp -r ${deps}/nimbledeps .
             chmod +w nimbledeps/nimbledata2.json
 
             nimble --useSystemNim --nim:${pkgs.nim}/bin/nim --offline -d:release build
