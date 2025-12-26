@@ -79,7 +79,6 @@
           checkPhase = ''
             # Neovim needs to write some state
             export XDG_STATE_HOME=$(mktemp -d)
-            echo 9
             nimble --nimbleDir=$DEPS_DIR --useSystemNim --nimcache:$NIMCACHE --nim:${pkgs.nim}/bin/nim --offline test
           '';
 
@@ -87,13 +86,6 @@
             mkdir -p $out/bin
             mv nimsight $out/bin/nimsight
           '';
-        };
-        devShells = {
-          default = pkgs.mkShellNoCC {
-            packages = with pkgs; [
-              nimble
-            ];
-          };
         };
       }
     );
