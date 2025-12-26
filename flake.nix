@@ -32,7 +32,6 @@
             mercurial
           ];
           buildPhase = ''
-            #export NIMBLE_DIR=$(mktemp -d)
             mkdir -p nimbledeps
             # Run setup to pull all the dependencies
             nimble --debug setup
@@ -41,6 +40,7 @@
           installPhase = ''
             mv nimbledeps $out
             echo "[]" > $out/packages_official.json
+            find -type f -exec sha256sum {} \;
           '';
 
           outputHashAlgo = "sha256";
@@ -61,7 +61,7 @@
             deps
           ];
 
-          buildInputs = [
+          checkInputs = [
             pkgs.neovim # Tests use neovim
           ];
 
