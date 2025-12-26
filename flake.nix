@@ -39,7 +39,9 @@
             mv nimbledeps $out
             # Erase the package list. This could change in future and we've already resolved what
             # we need
+            echo "foo"
             ls $out
+            exit 1
             echo "[]" > $out/packages_official.json
           '';
 
