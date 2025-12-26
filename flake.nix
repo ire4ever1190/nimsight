@@ -87,6 +87,14 @@
             mv nimsight $out/bin/nimsight
           '';
         };
+        devShells = {
+          default = pkgs.mkShell {
+            packages = with pkgs; [
+              nimble
+              neovim
+            ];
+          };
+        };
       }
     );
 }
