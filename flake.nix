@@ -39,8 +39,7 @@
             mv nimbledeps $out
             # Erase the package list. This could change in future and we've already resolved what
             # we need
-            sha256sum $out/nimbledata2.json
-            exit 1
+            ls $out
             echo "[]" > $out/packages_official.json
           '';
 
