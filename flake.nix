@@ -39,12 +39,14 @@
             mv nimbledeps $out
             # Erase the package list. This could change in future and we've already resolved what
             # we need
+            find -type f -exec sha256sum {} \;
+            exit 1
             echo "[]" > $out/packages_official.json
           '';
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-oNEkdVASoUWFbQML5NPFICRT36OWNuMCzrvUV2RYlQo=";
+          outputHash = "";
         };
       in
       {
