@@ -1,8 +1,8 @@
 ## Tests for parsing error messages
 
-import std/[unittest, osproc, os, strformat, strutils, sequtils, paths]
+import std/[unittest, osproc, os, strformat, strutils, paths]
 
-import nimsight/[errors {.all.}, customast]
+import nimsight/[errors {.all.}]
 
 let
   auxFile = currentSourcePath().parentDir() / "errorParsingAuxFile.nim"
