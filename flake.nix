@@ -40,7 +40,7 @@
           installPhase = ''
             mv nimbledeps $out
             echo "[]" > $out/packages_official.json
-            find -type f -exec sha256sum {} \;
+            find $out -type f -exec sha256sum {} \;
           '';
 
           outputHashAlgo = "sha256";
