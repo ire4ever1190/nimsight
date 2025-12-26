@@ -37,15 +37,12 @@
 
           installPhase = ''
             mv nimbledeps $out
-            # Erase the package list. This could change in future and we've already resolved what
-            # we need
-            find $out -type f -exec sha256sum {} \;
             echo "[]" > $out/packages_official.json
           '';
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "";
+          outputHash = "sha256-5qN45gy07/OnWyxiFIVCRhEuWcD2A0Av4APtpRujePo=";
         };
       in
       {
