@@ -35,7 +35,7 @@
             #export NIMBLE_DIR=$(mktemp -d)
             mkdir -p nimbledeps
             # Run setup to pull all the dependencies
-            nimble setup
+            nimble --debug setup
           '';
 
           installPhase = ''
@@ -45,7 +45,7 @@
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "";
+          outputHash = "sha256-IkNAhTI9dJQ9R4lxzVsL8pVa+EZyRRxDVN5pc4jcioI=";
         };
       in
       {
