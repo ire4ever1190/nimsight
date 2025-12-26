@@ -39,19 +39,12 @@
             mv nimbledeps $out
             # Erase the package list. This could change in future and we've already resolved what
             # we need
-            echo "foo"
-            sha256sum $out/nimbledata2.json
-            ls $out
-            ls $out/pkgs2
-            sha256sum $out/pkgs2/minilru-0.1.0-9f200310ac8455e07e6d3a9d1b4088677cb63603/nimblemeta.json
-            cat $out/pkgs2/minilru-0.1.0-9f200310ac8455e07e6d3a9d1b4088677cb63603/nimblemeta.json
-            exit 1
             echo "[]" > $out/packages_official.json
           '';
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "";
+          outputHash = "sha256-oNEkdVASoUWFbQML5NPFICRT36OWNuMCzrvUV2RYlQo=";
         };
       in
       {
