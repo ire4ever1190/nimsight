@@ -40,7 +40,6 @@
             # Erase the package list. This could change in future and we've already resolved what
             # we need
             find $out -type f -exec sha256sum {} \;
-            exit 1
             echo "[]" > $out/packages_official.json
           '';
 
