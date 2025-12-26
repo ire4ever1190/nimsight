@@ -20,7 +20,10 @@
         pkgs = nixpkgs.legacyPackages.${system};
         deps = pkgs.stdenv.mkDerivation {
           name = "deps";
-          src = ./.;
+          srcs = builtins.path {
+            name = "nimsight";
+            path = ./.;
+          };
           nativeBuildInputs = with pkgs; [
             nimble
             cacert
@@ -42,7 +45,7 @@
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-5qN45gy07/OnWyxiFIVCRhEuWcD2A0Av4APtpRujePo=";
+          outputHash = "";
         };
       in
       {
