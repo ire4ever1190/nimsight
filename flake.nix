@@ -23,26 +23,33 @@
           src = ./.;
           nativeBuildInputs = with pkgs; [
             nimble
-            git
             cacert
+            # Needed for downloading different packages
+            git
+            mercurial
           ];
           buildPhase = ''
-            nimble -l setup
-            ls
+            export OUTPUT_DIR=$(mktemp -d)
+            # Refresh now or else nimble will try and pull the list later
+            nimble --nimbleDir=$OUTPUT_DIR refresh
+
+            # Run setup to pull all the dependencies
+            nimble --nimbleDir=$OUTPUT_DIR setup
           '';
 
           installPhase = ''
-            mv nimbledeps $out
+            mv $OUTPUT_DIR $out
           '';
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-FheKWXMS7icRBY+E/l7NZVX1uZ4+KMBgY0yZ4lLPsT8=";
+          outputHash = "sha256-rTYinFvPJadOFrta4EGv9IUo92zv15QEJrTtm0VweWY=";
         };
       in
       {
-        defaultPackage = pkgs.stdenv.mkDerivation {
-          name = "nimsight";
+        packages.default = pkgs.stdenv.mkDerivation {
+          pname = "nimsight";
+          version = "0.1.0";
 
           src = ./.;
 
@@ -50,12 +57,30 @@
             nimble
             nim
             deps
-            git
+          ];
+
+          buildInputs = [
+            pkgs.neovim # Tests use neovim
           ];
 
           buildPhase = ''
-            export NIMBLE_DIR=${deps}
-            nimble build
+            export DEPS_DIR=$(mktemp -d)
+            export NIMCACHE=$(mktemp -d)
+            # Copy into a temp directory we can write to
+            cp -r ${deps}/* $DEPS_DIR/
+
+            # Nimble writes to this at the end for some reason
+            chmod +rw $DEPS_DIR/nimbledata2.json
+
+            nimble --nimbleDir=$DEPS_DIR --useSystemNim --nimcache:$NIMCACHE --nim:${pkgs.nim}/bin/nim --offline -d:release build
+          '';
+
+          doCheck = true;
+          checkPhase = ''
+            # Neovim needs to write some state
+            export XDG_STATE_HOME=$(mktemp -d)
+
+            nimble --nimbleDir=$DEPS_DIR --useSystemNim --nimcache:$NIMCACHE --nim:${pkgs.nim}/bin/nim --offline test
           '';
 
           installPhase = ''
