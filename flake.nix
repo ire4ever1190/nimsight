@@ -29,21 +29,22 @@
             mercurial
           ];
           buildPhase = ''
-            export OUTPUT_DIR=$(mktemp -d)
-            # Refresh now or else nimble will try and pull the list later
-            nimble --nimbleDir=$OUTPUT_DIR refresh
-
+            #export NIMBLE_DIR=$(mktemp -d)
+            mkdir -p nimbledeps
             # Run setup to pull all the dependencies
-            nimble --nimbleDir=$OUTPUT_DIR setup
+            nimble setup
           '';
 
           installPhase = ''
-            mv $OUTPUT_DIR $out
+            mv nimbledeps $out
+            # Erase the package list. This could change in future and we've already resolved what
+            # we need
+            echo "[]" > $out/packages_official.json
           '';
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-rTYinFvPJadOFrta4EGv9IUo92zv15QEJrTtm0VweWY=";
+          outputHash = "sha256-oNEkdVASoUWFbQML5NPFICRT36OWNuMCzrvUV2RYlQo=";
         };
       in
       {
@@ -64,28 +65,35 @@
           ];
 
           buildPhase = ''
-            export DEPS_DIR=$(mktemp -d)
-            export NIMCACHE=$(mktemp -d)
+            # Nimble wants to write its data into NIMBLE_DIR which by default is in ~/.nimble
+            # We can't override NIMBLE_DIR, because then it wont use local dependencies
+            export HOME=$(mktemp -d)
+
             # Copy into a temp directory we can write to
-            cp -r ${deps}/* $DEPS_DIR/
+            cp -r ${deps} nimbledeps
+            chmod +w nimbledeps/nimbledata2.json
 
-            # Nimble writes to this at the end for some reason
-            chmod +rw $DEPS_DIR/nimbledata2.json
-
-            nimble --nimbleDir=$DEPS_DIR --useSystemNim --nimcache:$NIMCACHE --nim:${pkgs.nim}/bin/nim --offline -d:release build
+            nimble --useSystemNim --nim:${pkgs.nim}/bin/nim --offline -d:release build
           '';
 
           doCheck = true;
           checkPhase = ''
             # Neovim needs to write some state
             export XDG_STATE_HOME=$(mktemp -d)
-            nimble --nimbleDir=$DEPS_DIR --useSystemNim --nimcache:$NIMCACHE --nim:${pkgs.nim}/bin/nim --offline test
+            nimble --useSystemNim --nim:${pkgs.nim}/bin/nim --offline test
           '';
 
           installPhase = ''
             mkdir -p $out/bin
             mv nimsight $out/bin/nimsight
           '';
+
+          meta = {
+            description = "Language server for Nim based on `nim check`";
+            homepage = "https://github.com/ire4ever1190/nimsight";
+            license = pkgs.lib.licenses.mit;
+            mainProgram = "nimsight";
+          };
         };
         devShells = {
           default = pkgs.mkShell {
