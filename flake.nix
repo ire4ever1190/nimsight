@@ -20,7 +20,7 @@
         pkgs = nixpkgs.legacyPackages.${system};
         deps = pkgs.stdenv.mkDerivation {
           name = "deps";
-          srcs = builtins.path {
+          src = builtins.path {
             name = "nimsight";
             path = ./.;
           };
