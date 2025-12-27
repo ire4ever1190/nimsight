@@ -40,18 +40,33 @@
           installPhase = ''
             mkdir -p $out
             mv nimbledeps $out/
+
             find $out -type f -exec sha256sum {} \;
           '';
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-8JmBNeQhTyOhBUl/bFdIXEw35G9N7E1VcLNYRULtJ/c=";
+          outputHash = "sha256-kACgg3gSxZmry9HK4E/pXDnK3wigBGzLwNkCWYH7dUw=";
+        };
+
+        # Just parse the nimble file for the version. Saves needing to update the version
+        version = pkgs.stdenv.mkDerivation {
+          name = "version";
+          nativeBuildInputs = with pkgs; [
+            nimble
+            gnugrep
+            coreutils
+          ];
+          src = ./.;
+          installPhase = ''
+            nimble -l dump | grep -Po 'version: "\K[^"]+' | tr -d '\n' > $out
+          '';
         };
       in
       {
         packages.default = pkgs.stdenv.mkDerivation {
           pname = "nimsight";
-          version = "0.1.0";
+          version = (builtins.readFile version);
 
           src = ./.;
 
