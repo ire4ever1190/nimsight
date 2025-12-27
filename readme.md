@@ -23,6 +23,10 @@ This is the list of features that are supported/will eventually be supported
 - [ ] Rename symbol
 - [ ] Code lens (Nimble tasks, run tests)
 
+### Installation
+
+Installation is supported via `nimble install nimsight` or via the flake `github:ire4ever1190/nimsight`
+
 ### Usage
 
 #### Kate
