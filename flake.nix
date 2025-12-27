@@ -34,12 +34,12 @@
           buildPhase = ''
             mkdir -p nimbledeps
             # Run setup to pull all the dependencies
-            nimble --debug setup
+            nimble setup
           '';
 
           installPhase = ''
             mkdir -p $out
-            mv nimbledeps $out/
+            cp -r nimbledeps $out/
           '';
 
           outputHashAlgo = "sha256";
