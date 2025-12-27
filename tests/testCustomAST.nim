@@ -1,9 +1,8 @@
-import std/[unittest, macros, paths, os, dirs, options]
+import std/[unittest, paths, os, dirs]
 
-import nimsight/[customast, nimCheck]
-import nimsight/utils/ast
+import nimsight/[customast]
 
-import "$nim"/compiler/[ast, parser, syntaxes, options, msgs, idents, pathutils]
+import "$nim"/compiler/[syntaxes, options, msgs, idents, pathutils]
 
 let compilerPath = getCurrentCompilerExe().Path.parentDir().parentDir()/Path"compiler"
 
