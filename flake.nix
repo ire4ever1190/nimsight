@@ -46,8 +46,8 @@
           '';
 
           outputHashAlgo = "sha256";
-          outputHashMode = "recursive";
-          outputHash = "sha256-KAVi4fSWImszJTJbOr9lErwgBZ4VnuBP6QFk98i/INc=";
+          outputHashMode = "flat";
+          outputHash = "sha256-f89+bkCHINlRGxRpjlTGBx/QzKS6wD3U9NZphmcncHE=";
         };
 
         # Just parse the nimble file for the version. Saves needing to update the version
