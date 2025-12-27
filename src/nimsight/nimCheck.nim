@@ -186,11 +186,13 @@ proc getErrors*(ctx: NimContext, content: string, x: DocumentUri): seq[ParsedErr
     workingDir = $x.path.parentDir()
   )
 
-  result = collect:
-    for chunk in outp.msgChunks:
+  for chunk in outp.msgChunks:
+    try:
       let err = chunk.parseError()
       if err.location.file == x.path:
-        err
+        result &= err
+    except ValueError as e:
+      error(e.msg)
 
 proc toDiagnostics*(
   errors: openArray[ParsedError],
