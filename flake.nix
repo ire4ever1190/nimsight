@@ -40,14 +40,12 @@
           '';
 
           installPhase = ''
-            zip -r deps.zip nimbledeps
-            mv deps.zip $out
-            # cp -r nimbledeps $out
+            cp -r nimbledeps $out
           '';
 
           outputHashAlgo = "sha256";
-          outputHashMode = "flat";
-          outputHash = "sha256-SKfKPxieYdj1G+79m0oLtvUqpJ2IWBT8mcSa/mTjvFk=";
+          outputHashMode = "recursive";
+          outputHash = "sha256-3E756GrwpM3jALpqPP9jNMjvBDX8qQbOBjMi/t7Rkms=";
         };
 
         # Just parse the nimble file for the version. Saves needing to update the version
