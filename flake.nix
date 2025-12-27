@@ -38,13 +38,12 @@
           '';
 
           installPhase = ''
-            mkdir -p $out
-            cp -r nimbledeps $out/
+            cp -r nimbledeps $out
           '';
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-8JmBNeQhTyOhBUl/bFdIXEw35G9N7E1VcLNYRULtJ/c=";
+          outputHash = "sha256-3E756GrwpM3jALpqPP9jNMjvBDX8qQbOBjMi/t7Rkms=";
         };
 
         # Just parse the nimble file for the version. Saves needing to update the version
@@ -84,7 +83,7 @@
             export HOME=$(mktemp -d)
 
             # Copy into a temp directory we can write to
-            cp -r ${deps}/nimbledeps .
+            cp -r ${deps} nimbledeps
             chmod +w nimbledeps/nimbledata2.json
 
             nimble --useSystemNim --nim:${pkgs.nim}/bin/nim --offline -d:release build
