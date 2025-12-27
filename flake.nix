@@ -71,8 +71,7 @@
         };
       in
       {
-        packages.default = deps;
-        packages.bin = pkgs.stdenv.mkDerivation {
+        packages.default = pkgs.stdenv.mkDerivation {
           pname = "nimsight";
           version = (builtins.readFile version);
 
