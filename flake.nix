@@ -32,11 +32,19 @@
             mercurial
 
             zip
+            jq
           ];
           buildPhase = ''
             mkdir -p nimbledeps
             # Run setup to pull all the dependencies
             nimble setup
+
+            # Sometimes the files listed in each nimblemeta.json file is in a different order.
+            # We'll sort that so the hash is consistent
+            for file in $(find -name nimblemeta.json); do
+              jq '.metaData.files |= sort' "$file" > "$file.tmp"
+              mv "$file.tmp" "$file"
+            done
           '';
 
           installPhase = ''
@@ -45,7 +53,7 @@
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-WbMzUSTqfef224MBq4dS8APQZ2P5qPrzNDIP9bUi6BM=";
+          outputHash = "sha256-YLYWcNFfl2pxtd/mhM4WJtXkkMsI3oXafCXQLUhVoFg=";
         };
 
         # Just parse the nimble file for the version. Saves needing to update the version
