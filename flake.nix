@@ -30,6 +30,8 @@
             # Needed for downloading different packages
             git
             mercurial
+
+            zip
           ];
           buildPhase = ''
             mkdir -p nimbledeps
@@ -38,12 +40,14 @@
           '';
 
           installPhase = ''
-            cp -r nimbledeps $out
+            zip -r deps.zip nimbledeps
+            mv deps.zip $out
+            # cp -r nimbledeps $out
           '';
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-3E756GrwpM3jALpqPP9jNMjvBDX8qQbOBjMi/t7Rkms=";
+          outputHash = "sha256-KAVi4fSWImszJTJbOr9lErwgBZ4VnuBP6QFk98i/INc=";
         };
 
         # Just parse the nimble file for the version. Saves needing to update the version
@@ -61,7 +65,8 @@
         };
       in
       {
-        packages.default = pkgs.stdenv.mkDerivation {
+        packages.default = deps;
+        packages.bin = pkgs.stdenv.mkDerivation {
           pname = "nimsight";
           version = (builtins.readFile version);
 
