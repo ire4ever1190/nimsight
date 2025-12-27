@@ -40,13 +40,11 @@
           installPhase = ''
             mkdir -p $out
             mv nimbledeps $out/
-
-            find $out -type f -exec sha256sum {} \;
           '';
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-kACgg3gSxZmry9HK4E/pXDnK3wigBGzLwNkCWYH7dUw=";
+          outputHash = "sha256-8JmBNeQhTyOhBUl/bFdIXEw35G9N7E1VcLNYRULtJ/c=";
         };
 
         # Just parse the nimble file for the version. Saves needing to update the version
