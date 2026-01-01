@@ -44,11 +44,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1767308082,
-        "narHash": "sha256-qk8m0C7+oXhPe7N9pItaud3+mLsN483JT5gkHDDZeRM=",
+        "lastModified": 1767308233,
+        "narHash": "sha256-zNvl1K+lrhfuvzy6YmGCxKk9iyLH1G5YKtATUdBfYBc=",
         "owner": "ire4ever1190",
         "repo": "mkNimbleApp",
-        "rev": "7da0aa5c3cb14c852af405931a6ab2dda019673d",
+        "rev": "a756f2ce8ab8fd0c1ff9124be83ea35664f355c6",
         "type": "github"
       },
       "original": {
@@ -59,11 +59,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1766651565,
-        "narHash": "sha256-QEhk0eXgyIqTpJ/ehZKg9IKS7EtlWxF3N7DXy42zPfU=",
+        "lastModified": 1767116409,
+        "narHash": "sha256-5vKw92l1GyTnjoLzEagJy5V5mDFck72LiQWZSOnSicw=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "3e2499d5539c16d0d173ba53552a4ff8547f4539",
+        "rev": "cad22e7d996aea55ecab064e84834289143e44a0",
         "type": "github"
       },
       "original": {

@@ -23,7 +23,7 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        mkNimbleApp = nimbleUtils.packages.${system}.default;
+        mkNimbleApp = nimbleUtils.packages.${system}.default.mkNimbleApp;
       in
       {
         packages.default = mkNimbleApp {
