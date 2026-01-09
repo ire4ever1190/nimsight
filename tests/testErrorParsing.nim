@@ -115,3 +115,14 @@ Error: in expression ' do:
     echo msg
     discard msg.parseError()
     echo "Finished"
+
+test "Compile time exceptions":
+  let err = parseError("""
+stack trace: (most recent call last)
+/files/test.nim(4, 3) staticError
+/files/test.nim(4, 3) Error: unhandled exception: hello [IOError]""")
+  check err.location.file == Path"/files/test.nim"
+  check err.location.line == 4
+  check err.location.col == 3
+  check err.msg.strip() == "unhandled exception: hello"
+  check err.exp == "IOError"
