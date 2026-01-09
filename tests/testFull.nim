@@ -110,7 +110,7 @@ suite "Diagnostics":
 
   test "Exceptions from static blocks are shown":
     let output = nvimTest("staticError")
-    check "unhandled exception: hello" in output
+    check "unhandled exception: hedllo" in output
 
 suite "Code actions":
   test "Function rename":

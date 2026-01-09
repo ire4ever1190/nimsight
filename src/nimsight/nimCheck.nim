@@ -185,7 +185,6 @@ proc getErrors*(ctx: NimContext, content: string, x: DocumentUri): seq[ParsedErr
     input=content,
     workingDir = $x.path.parentDir()
   )
-
   for chunk in outp.msgChunks:
     try:
       let err = chunk.parseError()

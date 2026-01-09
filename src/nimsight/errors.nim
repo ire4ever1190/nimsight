@@ -21,6 +21,8 @@ type
       ## Trying to use an identifer when it could come from multiple modules
     RemovableModule
       ## Either the import is unused or duplicated
+    Exception
+      ## Exception was raised at compile time
     # TODO: case statement missing cases, deprecated/unused
 
   NimLocation = object
@@ -46,6 +48,8 @@ type
     of Any, RemovableModule: discard
     of Unknown, AmbigiousIdentifier:
       possibleSymbols*: seq[string]
+    of Exception:
+      exp*: string
 
 const unitSep* = '\31'
   ## Separator Nim compiler uses to split error messages
@@ -63,17 +67,21 @@ func `$`*(e: ParsedError): string =
   result.strip()
 
 let grammar = peg"""
+S <- msgLine / stacktraceHeader
 msgLine <- {path} position ' ' ((&errorLevel {errorLevel} ': ' {@}($ / internalName)) / {instantiation} \n)
-instantiation <-
-  ('template/generic instantiation of `' @ '` from here') /
-  'template/generic instantiation from here'
 
-# The name that the compiler uses internally
-internalName <- '[' @ ']' $
+# Any line that leads up an an error, this gives us info about where it originated from in user code
+instantiation <- (!\n .)*
+
+# Code name of the error/warning the compiler has internally e.g. [UndeclaredIdentifier]
+internalName <- '[' {@} ']' $
 errorLevel <- 'Hint' / 'Warning' / 'Error'
 position <- '(' {\d+} ', ' {\d+} ')'
 # Match until we reach the (line, col)
-path <- (!position .)*
+path <- (!(position / \s) \S)*
+
+
+stacktraceHeader <- 'stack trace: (most recent call last)' \n
 """
 
 iterator msgChunks*(msg: string): string =
@@ -117,12 +125,14 @@ func toDiagnosticSeverity(x: sink string): DiagnosticSeverity =
     # Spec mentions to interpret as Error if missing
     DiagnosticSeverity.Error
 
+proc matchGrammar(msg: string): array[6, string] =
+  {.gcsafe.}:
+    assert msg.match(grammar, result), "Grammar doesn't match: " & msg
+
 proc readError*(msg: string): ParsedError {.gcsafe.} =
   ## Parses an error line into a basic structure.
   ## Doesn't fully parse the message
-  var matches = default(array[5, string])
-  {.gcsafe.}:
-    assert msg.match(grammar, matches), "Grammar doesn't match: " & msg
+  let matches = msg.matchGrammar()
 
   # Parse values from the matches
   let
@@ -151,6 +161,7 @@ proc parseError*(msg: string): ParsedError =
   # Parse out information from the error message.
   # All 'generic/template instantiation' messages come before the actual message
   let lines = splitMsgLines(msg)
+
   # Usually happens when the compiler segfaults.
   # Best to raise an error instead of letting the whole server crash
   if lines.len == 0:
@@ -164,9 +175,14 @@ proc parseError*(msg: string): ParsedError =
 
   # Add the instanitations as related information
   for inst in instantiations:
-    var matches = default(array[5, string])
-    {.cast(gcsafe).}:
-      doAssert inst.match(grammar, matches)
+    # If an exception is raised at compile time, first line has this
+    if inst.strip() == "stack trace: (most recent call last)":
+      {.cast(uncheckedAssign).}:
+        result.kind = Exception
+      continue
+
+    let matches = inst.matchGrammar()
+
     result.relatedInfo &= RelatedInfo(
       msg: matches[3],
       location: NimLocation(
@@ -175,6 +191,9 @@ proc parseError*(msg: string): ParsedError =
         col: matches[2].parseUint()
       )
     )
+
+  if result.kind == Exception:
+    result.exp = error.matchGrammar()[5]
 
   # Try and match the message against some patterns
   case match(result.msg):
