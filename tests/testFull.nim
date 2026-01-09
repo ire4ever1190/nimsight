@@ -94,18 +94,23 @@ test "No errors on startup":
   check "RPC[Error]" notin output
   check "error = " notin output
 
-test "Can get diagnostics":
-  let output = nvimTest("diagnosticPragmas")
-  check "Warning is shown" in output
-  check "Hint is shown" in output
-  check "Error is shown" in output
-  # Just a sanity check to make sure only the things
-  # we point to
-  check "Make sure the test works" notin output
+suite "Diagnostics":
+  test "Can get diagnostics":
+    let output = nvimTest("diagnosticPragmas")
+    check "Warning is shown" in output
+    check "Hint is shown" in output
+    check "Error is shown" in output
+    # Just a sanity check to make sure only the things
+    # we point to
+    check "Make sure the test works" notin output
 
-test "Errors don't leak across files":
-  let output = nvimTest("errorsLeak")
-  check "<NO ERRORS FOUND>" in output
+  test "Errors don't leak across files":
+    let output = nvimTest("errorsLeak")
+    check "<NO ERRORS FOUND>" in output
+
+  test "Exceptions from static blocks are shown":
+    let output = nvimTest("staticError")
+    check "unhandled exception: hello" in output
 
 suite "Code actions":
   test "Function rename":
