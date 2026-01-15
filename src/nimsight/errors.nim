@@ -81,19 +81,29 @@ func `$`*(e: ParsedError): string =
   else: discard
   result.strip()
 
+# Basics we share
+let
+  nl: Combinator[Void] = -e'\n'
+  ws: Combinator[Void] = - *(-e(Whitespace))
+
+let mismatchGrammar = block:
+  let
+    header = e"Expression: ".until(nl)
+    expectedHeader = e"Expected one of (first mismatch at [position]):"
+    mismatch = (e'[') * digit()$position * (e']') * ws * dot().until(nl)$decl
+  -dot().until(expectedHeader) * expectedHeader * *(nl * mismatch)$mismatches
+
 let errGrammar = block:
   let
     stacktraceHeader = e "stack trace: (most recent call last)\n"
-    nl = e'\n'
-    ws = *(-e(Whitespace))
     position = e('(') * digit()$line * e", " * digit()$column * e')'
-    path = *(-(not (position | nl)) * any)
+    path = *(-(not (position | nl)) * dot())
     errorLevel = expect(ReportLevel)
     # Code name of the error/warning the compiler has internally e.g. [UndeclaredIdentifier].
     # This always appears at the end
-    internalName = -(e'[') * any.until(e']') * (-e']') * fin()
-    instantiation = any.until(nl)
-    errorMsg = any.until(internalName)$msg * ws * ?internalName$name
+    internalName = -(e'[') * dot().until(e']') * (-e']') * fin()
+    instantiation = dot().until(nl)
+    errorMsg = dot().until(internalName)$msg * ws * ?internalName$name
     errorLine = errorLevel$level * e": " * errorMsg
     msgLine = path$file * position * -(e' ') * any((error: errorLine, instantiation: instantiation * -nl))$info
   # We need to track if the first line indicates its a stacktrace, this lets us
@@ -228,3 +238,11 @@ proc parseError*(msg: string): ParsedError =
         msg: err.msg,
         location: err.location
       )
+
+  let mismatch = mismatchGrammar.match(msg)
+  if mismatch.isSome:
+    {.cast(uncheckedAssign).}:
+      result.kind = TypeMismatch
+    result.mismatches = collect:
+      for mismatch in mismatch.get().mismatches:
+        Mismatch(idx: mismatch.position, expected: mismatch.decl)
