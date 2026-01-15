@@ -1,4 +1,4 @@
-import std/[pegs, strutils, sugar, strformat, options, paths]
+import std/[strutils, sugar, strformat, options, paths]
 
 import customast
 
@@ -7,6 +7,7 @@ import sdk/types
 import utils/[stringMatch]
 
 import std/strscans
+import pkg/nort
 
 type
   ErrorKind* = enum
@@ -23,6 +24,8 @@ type
       ## Either the import is unused or duplicated
     Exception
       ## Exception was raised at compile time
+    TypeMismatch
+      ## Function exists, but arguments don't line up
     # TODO: case statement missing cases, deprecated/unused
 
   NimLocation = object
@@ -35,6 +38,10 @@ type
     ## Things like template instanitations
     location*: NimLocation
     msg*: string
+
+  Mismatch* = object
+    idx*: int ## Index of parameter that has the mismatch
+    expected*: string ## What parameter was expected in this position
 
   ParsedError* = object
     ## Nim error that is parsed into a structured format
@@ -50,6 +57,14 @@ type
       possibleSymbols*: seq[string]
     of Exception:
       exp*: string
+    of TypeMismatch:
+      mismatches*: seq[Mismatch]
+
+  ReportLevel = enum
+    Hint
+    Info
+    Warning
+    Error
 
 const unitSep* = '\31'
   ## Separator Nim compiler uses to split error messages
@@ -66,35 +81,30 @@ func `$`*(e: ParsedError): string =
   else: discard
   result.strip()
 
-let grammar = peg"""
-S <- msgLine / stacktraceHeader
-msgLine <- {path} position ' ' ((&errorLevel {errorLevel} ': ' {@}($ / internalName)) / {instantiation} \n)
-
-# Any line that leads up an an error, this gives us info about where it originated from in user code
-instantiation <- (!\n .)*
-
-# Code name of the error/warning the compiler has internally e.g. [UndeclaredIdentifier]
-internalName <- '[' {@} ']' $
-errorLevel <- 'Hint' / 'Warning' / 'Error'
-position <- '(' {\d+} ', ' {\d+} ')'
-# Match until we reach the (line, col)
-path <- (!(position / \s) \S)*
-
-
-stacktraceHeader <- 'stack trace: (most recent call last)' \n
-"""
+let errGrammar = block:
+  let
+    stacktraceHeader = e "stack trace: (most recent call last)\n"
+    nl = e'\n'
+    ws = *(-e(Whitespace))
+    position = e('(') * digit()$line * e", " * digit()$column * e')'
+    path = *(-(not (position | nl)) * any)
+    errorLevel = expect(ReportLevel)
+    # Code name of the error/warning the compiler has internally e.g. [UndeclaredIdentifier].
+    # This always appears at the end
+    internalName = -(e'[') * any.until(e']') * (-e']') * fin()
+    instantiation = any.until(nl)
+    errorMsg = any.until(internalName)$msg * ws * ?internalName$name
+    errorLine = errorLevel$level * e": " * errorMsg
+    msgLine = path$file * position * -(e' ') * any((error: errorLine, instantiation: instantiation * -nl))$info
+  # We need to track if the first line indicates its a stacktrace, this lets us
+  # catch if its a static exception
+  (?stacktraceHeader).map(it => it.isSome())$isException * msgLine
 
 iterator msgChunks*(msg: string): string =
   ## Returns each msg chunk from Nim output.
   for msg in msg.split(unitSep):
     if not msg.isEmptyOrWhitespace():
       yield msg
-
-proc splitMsgLines(msg: string): seq[string] =
-  ## Splits a full error message into a series of lines
-  {.cast(gcsafe).}:
-    for part in msg.findAll(grammar):
-      result &= part
 
 proc findNode*(ast: Tree, loc: NimLocation): Option[NodeIdx] =
   ## Finds the node that points to a location
@@ -115,42 +125,35 @@ proc toLocation*(ast: Tree, loc: NimLocation): Option[Location] =
         range: range.unsafeGet()
     )
 
-func toDiagnosticSeverity(x: sink string): DiagnosticSeverity =
+func toDiagnosticSeverity(x: ReportLevel): DiagnosticSeverity =
   ## Returns the diagnostic severity for a string e.g. Hint, Warning
   case x
-  of "Hint": DiagnosticSeverity.Hint
-  of "Warning": DiagnosticSeverity.Warning
-  of "Error": DiagnosticSeverity.Error
+  of Hint, Info: DiagnosticSeverity.Hint
+  of Warning: DiagnosticSeverity.Warning
+  of Error: DiagnosticSeverity.Error
   else:
     # Spec mentions to interpret as Error if missing
     DiagnosticSeverity.Error
 
-proc matchGrammar(msg: string): array[6, string] =
-  {.gcsafe.}:
-    assert msg.match(grammar, result), "Grammar doesn't match: " & msg
-
-proc readError*(msg: string): ParsedError {.gcsafe.} =
-  ## Parses an error line into a basic structure.
-  ## Doesn't fully parse the message
-  let matches = msg.matchGrammar()
+proc readError*(info: errGrammar.T): ParsedError {.gcsafe.} =
 
   # Parse values from the matches
   let
-    file = matches[0].strip() # Lines after first error start with newline, easier to fix here
-    line = matches[1].parseUInt()
-    col = matches[2].parseUInt()
-    lvl = matches[3].toDiagnosticSeverity()
-    msg = matches[4]
+    file = info.file.strip()
+    line = info.line
+    col = info.column
+    lvl = info.info.error.level
+    msg = info.info.error.msg
 
   # Construct a basic ParsedError
   result = ParsedError(
     location: NimLocation(
       file: Path(file),
-      line: line,
-      col: col
+      line: line.uint,
+      col: col.uint
     ),
     msg: msg,
-    severity: lvl,
+    severity: lvl.toDiagnosticSeverity(),
     kind: Any
   )
 
@@ -160,7 +163,9 @@ proc parseError*(msg: string): ParsedError =
 
   # Parse out information from the error message.
   # All 'generic/template instantiation' messages come before the actual message
-  let lines = splitMsgLines(msg)
+  let lines = collect:
+    for match in errGrammar.match(msg):
+      match
 
   # Usually happens when the compiler segfaults.
   # Best to raise an error instead of letting the whole server crash
@@ -176,26 +181,26 @@ proc parseError*(msg: string): ParsedError =
   # Add the instanitations as related information
   for inst in instantiations:
     # If an exception is raised at compile time, first line has this
-    if inst.strip() == "stack trace: (most recent call last)":
+    if inst.isException:
       {.cast(uncheckedAssign).}:
         result.kind = Exception
       continue
 
-    let matches = inst.matchGrammar()
-
     result.relatedInfo &= RelatedInfo(
-      msg: matches[3],
+      msg: inst.info.instantiation,
       location: NimLocation(
-        file: Path(matches[0]),
-        line: matches[1].parseUInt(),
-        col: matches[2].parseUint()
+        file: Path(inst.file),
+        line: inst.line.uint,
+        col: inst.column.uint
       )
     )
 
   if result.kind == Exception:
-    result.exp = error.matchGrammar()[5]
+    echo error
+    result.exp = error.info.error.name.get()
 
   # Try and match the message against some patterns
+  echo result.msg
   case match(result.msg):
   of "undeclared identifier: '$w'$scandidates (edit distance, scope distance); see '--spellSuggest':$s$*" as (ident, rest):
     # Parse out the different options
@@ -218,7 +223,7 @@ proc parseError*(msg: string): ParsedError =
     # Add the calls as related information
     for line in calls.splitLines():
       if line.isEmptyOrWhitespace(): continue
-      let err = line.strip(chars = {'>'} + Whitespace).readError()
+      let err = errGrammar.match(line.strip(chars = {'>'} + Whitespace)).get().readError()
       result.relatedInfo &= RelatedInfo(
         msg: err.msg,
         location: err.location
