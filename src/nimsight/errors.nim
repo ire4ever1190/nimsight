@@ -110,7 +110,7 @@ let errGrammar = block:
     msgLine = path$file * position * -(e' ') * any((error: errorLine, instantiation: instantiation * -nl))$info
   # We need to track if the first line indicates its a stacktrace, this lets us
   # catch if its a static exception
-  (?stacktraceHeader).map(it => it.isSome())$isException * msgLine
+  (?stacktraceHeader).map(it => it.isSome())$isException * ws * msgLine
 
 iterator msgChunks*(msg: string): string =
   ## Returns each msg chunk from Nim output.
@@ -173,7 +173,7 @@ proc initMismatch(idx: int, procHeader: string): Mismatch =
   ## Creates a mismatch from an error like `[$idx] proc foo(a, b: bool)`
   ## This parses the proc header to figure out what the expected type is
   let (_, root, errors) = nimParseFile("stdin", procHeader)
-  assert errors.len == 0, "Got errors when parsing mismatch: " & $errors
+  assert errors.len == 0, fmt"Got errors when parsing mismatch: {errors}"
   let params = root[0][3] # nkStmtList -> nkProcDef
 
   # Step through the params until we reach the mismatch
@@ -190,7 +190,7 @@ proc initMismatch(idx: int, procHeader: string): Mismatch =
 
 proc parseError*(msg: string): ParsedError =
   ## Given a full error message, it returns a parsed error.
-  ## "full errror message" meaning it handles a full block separated by UnitSep (See --unitsep in Nim).
+  ## "full error message" meaning it handles a full block separated by UnitSep (See --unitsep in Nim).
 
   # Parse out information from the error message.
   # All 'generic/template instantiation' messages come before the actual message
@@ -201,7 +201,7 @@ proc parseError*(msg: string): ParsedError =
   # Usually happens when the compiler segfaults.
   # Best to raise an error instead of letting the whole server crash
   if lines.len == 0:
-    raise (ref ValueError)(msg: "Failed to parse logs from: " & msg)
+    raise (ref ValueError)(msg: fmt"Failed to parse logs from: {msg}")
 
   let
     error = lines[^1]
