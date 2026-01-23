@@ -1,3 +1,5 @@
+import "$nim"/compiler/[ast, parser, syntaxes]
+
 import std/[strutils, sugar, strformat, options, paths]
 
 import customast
@@ -167,6 +169,25 @@ proc readError*(info: errGrammar.T): ParsedError {.gcsafe.} =
     kind: Any
   )
 
+proc initMismatch(idx: int, procHeader: string): Mismatch =
+  ## Creates a mismatch from an error like `[$idx] proc foo(a, b: bool)`
+  ## This parses the proc header to figure out what the expected type is
+  let (_, root, errors) = nimParseFile("stdin", procHeader)
+  assert errors.len == 0, "Got errors when parsing mismatch: " & $errors
+  let params = root[0][3] # nkStmtList -> nkProcDef
+
+  # Step through the params until we reach the mismatch
+  var currIdx = 1
+  for i in 1 ..< params.len:
+    let identDef = params[i]
+    for j in 0 ..< identDef.len - 2:
+      if currIdx == idx:
+        # Return the type for this param
+        return Mismatch(idx: idx, expected: identDef[^2].ident.s)
+      currIdx += 1
+
+  raise (ref ValueError)(msg: fmt"Failed to find parameter at {idx} for {procHeader}")
+
 proc parseError*(msg: string): ParsedError =
   ## Given a full error message, it returns a parsed error.
   ## "full errror message" meaning it handles a full block separated by UnitSep (See --unitsep in Nim).
@@ -245,4 +266,4 @@ proc parseError*(msg: string): ParsedError =
       result.kind = TypeMismatch
     result.mismatches = collect:
       for mismatch in mismatch.get().mismatches:
-        Mismatch(idx: mismatch.position, expected: mismatch.decl)
+        initMismatch(mismatch.position, mismatch.decl)
