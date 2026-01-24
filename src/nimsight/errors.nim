@@ -1,6 +1,6 @@
-import "$nim"/compiler/[ast, parser, syntaxes]
+import "$nim"/compiler/[ast]
 
-import std/[strutils, sugar, strformat, options, paths, sequtils, logging]
+import std/[strutils, sugar, strformat, options, paths, sequtils]
 
 import customast
 
@@ -74,23 +74,29 @@ type
 const unitSep* = '\31'
   ## Separator Nim compiler uses to split error messages
 
-func badParameter*(e: ParsedError): Option[tuple[msg: string, idx: int]] =
-  ## Returns the message and parameter that is bad for a mismatch.
-  ## Sometimes the user is completely wrong, in which case we don't try and find the one bad parameter
-  ## `err` must be a TypeMismatch
+func badParamIdx*(mismatches: seq[Mismatch]): Option[int] =
+  ## Tries to find a common parameter that is bad across multiple mismatches
+  if mismatches.len == 0: return none(int) # Shouldn't happen...
+
+  let hasCommon = mismatches.allIt(it.idx == mismatches[0].idx)
+  if hasCommon:
+    return some mismatches[0].idx - 1 # Make it zero indexed
+
+func badParameterMsg*(e: ParsedError): string =
+  ## Generates a message for a TypeMismatch.
+  let idx = e.mismatches.badParamIdx()
+  if idx.isNone: return e.msg
+  let badParam = idx.get()
+
   if e.mismatches.len == 1:
     # Single mismatch, return what we expected
-    let badParam = e.mismatches[0].idx - 1
-    some (fmt"Expected `{e.mismatches[0].expected}` but got `{e.passed[badParam]}`", badParam)
-  elif e.mismatches.len > 1 and allIt(e.mismatches, it.idx == e.mismatches[0].idx):
-    # If the mismatches all happen in the same position, return the possible types
-    let badParam = e.mismatches[0].idx - 1
+    fmt"Expected `{e.mismatches[0].expected}` but got `{e.passed[badParam]}`"
+  else:
     let possible = collect:
       for mismatch in e.mismatches:
         fmt"`{mismatch.expected}`"
     let allOptions = possible.join(", ")
-    some (fmt"Expected one of {allOptions} but got `{e.passed[badParam]}`", badParam)
-  else: none((string, int))
+    fmt"Expected one of {allOptions} but got `{e.passed[badParam]}`"
 
 func `$`*(e: ParsedError): string =
   result &= e.msg & "\n"
@@ -102,9 +108,7 @@ func `$`*(e: ParsedError): string =
         result &= &"- {possible}\n"
       result.setLen(result.len - 1)
   of TypeMismatch:
-    let info = e.badParameter
-    if info.isSome():
-      return info.get()[0]
+    result = e.badParameterMsg()
   else: discard
   result.strip()
 
@@ -165,10 +169,10 @@ proc findRange*(ast: Tree, err: ParsedError): Option[Range] =
   case err.kind
   of TypeMismatch:
     # We need to find that parameter in the node
-    let info = err.badParameter
-    if info.isSome():
+    let idx = err.mismatches.badParamIdx
+    if idx.isSome():
       # Get the n'th param (+1 to skip call ident)
-      return some node[info.get().idx + 1].initRange()
+      return some node[idx.get() + 1].initRange()
   else:
     return some node.initRange()
 

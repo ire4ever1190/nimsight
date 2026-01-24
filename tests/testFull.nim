@@ -1,5 +1,6 @@
-import std/[osproc, streams, os, unittest, macros, strutils, strformat, strscans, paths, files]
+import std/[osproc, streams, os, unittest, strutils, strformat, strscans, paths, files]
 
+import pkg/nort
 
 proc checkDiff(inputFile: string) =
   ## Checks the output file matches what we expect
@@ -36,6 +37,11 @@ proc runTest(inputFile: string): string =
   if Path(inputFile).changeFileExt("expected").fileExists:
     checkDiff(inputFile)
 
+let commandGram = block:
+  let ws = - +(-e(Whitespace))
+  # ... ^ :Diag
+  ws * e('^') * ws * dot().until(ws)$command * occurs(?ws * e"]#")$atEnd
+
 proc parseCommands(x: string): seq[string] =
   ## Parses all vim commands stored in the source
   ##
@@ -57,14 +63,16 @@ proc parseCommands(x: string): seq[string] =
     if line.startsWith("#> "):
       result &= line.replace("#> ", "")
     elif line.strip().endsWith("#["):
-      i += 1
-      let
-        line = lines[i]
-        col = line.indentation()
-      result &= fmt":cal cursor({i}, {col + 1})"
-      let (ok, command) = line.strip().scanTuple("^$+]#")
-      assert ok, line
-      result &= command.strip()
+      while true:
+        i += 1
+        let
+          line = lines[i]
+          col = line.indentation() # Count whitespace up to '^'
+        result &= fmt":cal cursor({i}, {col + 1})"
+        let res = commandGram.match(line).get()
+        result &= res.command
+        if res.atEnd: break # Ends with ]#
+
     i += 1
 
 proc getCommands(path: string): seq[string] =
@@ -114,7 +122,12 @@ suite "Diagnostics":
 
   test "Parameter mismatch shown for parameter":
     let output = nvimTest("mismatch")
-    check "Expected `string` but got `bool`" in output
+    check "<NO ERRORS FOUND>" in output
+    check "Expected one of `string`, `int` but got `bool`" in output
+
+  test "Operators still show errors":
+    let output = nvimTest("operatorMismatch")
+    check "Expected `int` but got `string`" in output
 
 suite "Code actions":
   test "Function rename":
