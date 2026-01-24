@@ -216,14 +216,12 @@ proc toPNode*(n: NodePtr): PNode =
   ## Converts a [NodePtr] into a `PNode`
   n.tree[].toPNode(n.idx)
 
-proc parseFile*(x: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
-  ## Parses a document. Doesn't perform any semantic analysis
+proc nimParseFile*(path: string, content: sink string): tuple[fileIdx: FileIndex, root: PNode, errors: seq[ParserError]] =
+  ## Parses Nim code using Nim's parser
   var conf = newConfigRef()
-  let fileIdx = fileInfoIdx(conf, AbsoluteFile x)
+  let fileIdx = fileInfoIdx(conf, AbsoluteFile path)
 
-  # Collect all the errors. Collecting them now allows us to show them
-  # before nim check happens
-  var errors: seq[ParserError] = @[]
+  var errors: seq[ParserError]
   proc errHandler(conf: ConfigRef; info: TLineInfo; msg: TMsgKind; arg: string) =
     errors &= ParserError(info: info, msg: msg, arg: arg)
 
@@ -233,7 +231,13 @@ proc parseFile*(x: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
     parser.openParser(p, fileIdx, llStreamOpen(content), newIdentCache(), conf)
     defer: closeParser(p)
     p.lex.errorHandler = errHandler
-    result = (fileIdx, parseAll(p).toTree(), errors)
+
+    result = (fileIdx, parseAll(p), errors)
+
+proc parseFile*(uri: DocumentUri, content: sink string): ParsedFile {.gcsafe.} =
+  ## Parses a document. Doesn't perform any semantic analysis
+  let (fileIdx, root, errors) = nimParseFile(uri.string, content)
+  result = (fileIdx, root.toTree(), errors)
 
 proc nameNode*(x: NodePtr): NodePtr =
   ## Returns the node that stores the name
