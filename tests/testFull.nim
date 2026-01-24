@@ -112,6 +112,10 @@ suite "Diagnostics":
     let output = nvimTest("staticError")
     check "unhandled exception: hello" in output
 
+  test "Parameter mismatch shown for parameter":
+    let output = nvimTest("mismatch")
+    check "Expected `string` but got `bool`" in output
+
 suite "Code actions":
   test "Function rename":
     discard nvimTest("codeAction")

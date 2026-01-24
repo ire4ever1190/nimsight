@@ -138,7 +138,11 @@ Expected one of (first mismatch at [position]):
 [1] proc foo(x: string)""")
   checkpoint $err
   check err.kind == TypeMismatch
+  check err.passed == @[
+    "int literal(9)"
+  ]
   check err.mismatches == @[
     Mismatch(idx: 1, expected: "bool"),
     Mismatch(idx: 1, expected: "string")
   ]
+  echo err

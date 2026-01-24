@@ -180,7 +180,7 @@ proc execProcess*(ctx: NimContext, cmd: string, args: openArray[string], input =
 proc getErrors*(ctx: NimContext, content: string, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
   let (outp, _) = ctx.execProcess(
-    "nim",
+    "/home/jake/.nimble/bin/nim",
     @["check"] & ourOptions & makeOptions(x) & "-",
     input=content,
     workingDir = $x.path.parentDir()
@@ -200,7 +200,7 @@ proc toDiagnostics*(
   ## Converts a list of errors into diagnostics
   for err in errors:
     # Convert from basic line info into extended line info (i.e. full range from AST)
-    let range = root.toRange(err.location)
+    let range = root.findRange(err)
     if range.isNone: continue
 
     # Convert relevant information

@@ -1,6 +1,6 @@
 import "$nim"/compiler/[ast, parser, syntaxes]
 
-import std/[strutils, sugar, strformat, options, paths]
+import std/[strutils, sugar, strformat, options, paths, sequtils, logging]
 
 import customast
 
@@ -60,7 +60,10 @@ type
     of Exception:
       exp*: string
     of TypeMismatch:
+      passed*: seq[string]
+        ## Types that were passed to the call
       mismatches*: seq[Mismatch]
+        ## Different mismatches for possible overloads
 
   ReportLevel = enum
     Hint
@@ -71,6 +74,24 @@ type
 const unitSep* = '\31'
   ## Separator Nim compiler uses to split error messages
 
+func badParameter*(e: ParsedError): Option[tuple[msg: string, idx: int]] =
+  ## Returns the message and parameter that is bad for a mismatch.
+  ## Sometimes the user is completely wrong, in which case we don't try and find the one bad parameter
+  ## `err` must be a TypeMismatch
+  if e.mismatches.len == 1:
+    # Single mismatch, return what we expected
+    let badParam = e.mismatches[0].idx - 1
+    some (fmt"Expected `{e.mismatches[0].expected}` but got `{e.passed[badParam]}`", badParam)
+  elif e.mismatches.len > 1 and allIt(e.mismatches, it.idx == e.mismatches[0].idx):
+    # If the mismatches all happen in the same position, return the possible types
+    let badParam = e.mismatches[0].idx - 1
+    let possible = collect:
+      for mismatch in e.mismatches:
+        fmt"`{mismatch.expected}`"
+    let allOptions = possible.join(", ")
+    some (fmt"Expected one of {allOptions} but got `{e.passed[badParam]}`", badParam)
+  else: none((string, int))
+
 func `$`*(e: ParsedError): string =
   result &= e.msg & "\n"
   case e.kind
@@ -80,6 +101,10 @@ func `$`*(e: ParsedError): string =
       for possible in e.possibleSymbols:
         result &= &"- {possible}\n"
       result.setLen(result.len - 1)
+  of TypeMismatch:
+    let info = e.badParameter
+    if info.isSome():
+      return info.get()[0]
   else: discard
   result.strip()
 
@@ -90,10 +115,13 @@ let
 
 let mismatchGrammar = block:
   let
-    header = e"Expression: ".until(nl)
+    header = -e"Expression: " * -dot().untilIncl(nl)
     expectedHeader = e"Expected one of (first mismatch at [position]):"
-    mismatch = (e'[') * digit()$position * (e']') * ws * dot().until(nl)$decl
-  -dot().until(expectedHeader) * expectedHeader * *(nl * mismatch)$mismatches
+    idx = between(digit()$position, e'[', e']')
+    mismatch = idx * ws * dot().until(nl)$decl
+    passedType: Combinator[string] = ws * -idx * -dot().untilIncl(e": ") * dot().untilIncl(nl)
+
+  -dot().untilIncl(header) * (*passedType)$passedTypes * -dot().untilIncl(expectedHeader) * *(nl * mismatch)$mismatches
 
 let errGrammar = block:
   let
@@ -103,7 +131,7 @@ let errGrammar = block:
     errorLevel = expect(ReportLevel)
     # Code name of the error/warning the compiler has internally e.g. [UndeclaredIdentifier].
     # This always appears at the end
-    internalName = -(e'[') * dot().until(e']') * (-e']') * fin()
+    internalName = dot().until(e']').between(e'[', e']') * fin()
     instantiation = dot().until(nl)
     errorMsg = dot().until(internalName)$msg * ws * ?internalName$name
     errorLine = errorLevel$level * e": " * errorMsg
@@ -127,6 +155,22 @@ proc toRange*(ast: Tree, loc: NimLocation): Option[Range] =
   let node = ast.findNode(loc)
   if node.isSome():
     return some ast.getPtr(node.unsafeGet()).initRange()
+
+proc findRange*(ast: Tree, err: ParsedError): Option[Range] =
+  ## Finds the range that corresponds to an error
+  let idx = ast.findNode(err.location)
+  if idx.isNone(): return none(Range)
+  let node = ast.getPtr(idx.get())
+
+  case err.kind
+  of TypeMismatch:
+    # We need to find that parameter in the node
+    let info = err.badParameter
+    if info.isSome():
+      # Get the n'th param (+1 to skip call ident)
+      return some node[info.get().idx + 1].initRange()
+  else:
+    return some node.initRange()
 
 proc toLocation*(ast: Tree, loc: NimLocation): Option[Location] =
   ## Converts a [NimLocation] into an LSP [Location]
@@ -231,7 +275,6 @@ proc parseError*(msg: string): ParsedError =
     result.exp = error.info.error.name.get()
 
   # Try and match the message against some patterns
-  echo result.msg
   case match(result.msg):
   of "undeclared identifier: '$w'$scandidates (edit distance, scope distance); see '--spellSuggest':$s$*" as (ident, rest):
     # Parse out the different options
@@ -260,10 +303,11 @@ proc parseError*(msg: string): ParsedError =
         location: err.location
       )
 
-  let mismatch = mismatchGrammar.match(msg)
+  let mismatch = mismatchGrammar.match(result.msg)
   if mismatch.isSome:
     {.cast(uncheckedAssign).}:
       result.kind = TypeMismatch
+    result.passed = mismatch.get().passedTypes
     result.mismatches = collect:
       for mismatch in mismatch.get().mismatches:
         initMismatch(mismatch.position, mismatch.decl)
