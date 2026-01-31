@@ -1,4 +1,4 @@
-import "$nim"/compiler/[ast]
+import "$nim"/compiler/[ast, renderer]
 
 import std/[strutils, sugar, strformat, options, paths, sequtils]
 
@@ -231,7 +231,7 @@ proc initMismatch(idx: int, procHeader: string): Mismatch =
     for j in 0 ..< identDef.len - 2:
       if currIdx == idx:
         # Return the type for this param
-        return Mismatch(idx: idx, expected: identDef[^2].ident.s)
+        return Mismatch(idx: idx, expected: $identDef[^2])
       currIdx += 1
 
   raise (ref ValueError)(msg: fmt"Failed to find parameter at {idx} for {procHeader}")

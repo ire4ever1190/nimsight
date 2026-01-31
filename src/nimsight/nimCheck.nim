@@ -192,6 +192,7 @@ proc getErrors*(ctx: NimContext, content: string, x: DocumentUri): seq[ParsedErr
         result &= err
     except ValueError as e:
       error(e.msg)
+  debug fmt"Found {len(result)} errors"
 
 proc toDiagnostics*(
   errors: openArray[ParsedError],
