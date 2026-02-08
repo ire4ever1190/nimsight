@@ -170,6 +170,10 @@ proc findRange*(ast: Tree, err: ParsedError): Option[Range] =
   of TypeMismatch:
     # We need to find that parameter in the node
     let idx = err.mismatches.badParamIdx
+    # Errors on operators get traced to the actual operator
+    # e.g. 1 + 1 (the `+` ident is found)
+    # So we need to backpeddle to the parent to find the infix call
+    let node = if node.kind == nkIdent: node.parent else: node
     if idx.isSome():
       # Get the n'th param (+1 to skip call ident)
       return some node[idx.get() + 1].initRange()
@@ -231,7 +235,8 @@ proc initMismatch(idx: int, procHeader: string): Mismatch =
     for j in 0 ..< identDef.len - 2:
       if currIdx == idx:
         # Return the type for this param
-        return Mismatch(idx: idx, expected: $identDef[^2])
+        {.gcsafe.}:
+          return Mismatch(idx: idx, expected: $identDef[^2])
       currIdx += 1
 
   raise (ref ValueError)(msg: fmt"Failed to find parameter at {idx} for {procHeader}")
