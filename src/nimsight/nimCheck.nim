@@ -180,7 +180,7 @@ proc execProcess*(ctx: NimContext, cmd: string, args: openArray[string], input =
 proc getErrors*(ctx: NimContext, content: string, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
   let (outp, _) = ctx.execProcess(
-    "/home/jake/.nimble/bin/nim",
+    findExe("nim"),
     @["check"] & ourOptions & makeOptions(x) & "-",
     input=content,
     workingDir = $x.path.parentDir()
