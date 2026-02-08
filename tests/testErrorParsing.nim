@@ -126,3 +126,38 @@ stack trace: (most recent call last)
   check err.location.col == 3
   check err.msg.strip() == "unhandled exception: hello"
   check err.exp == "IOError"
+
+suite "Type mismatch":
+  test "Type mismatch":
+    let err = parseError("""
+    /file/test2.nim(4, 4) Error: type mismatch
+    Expression: foo(9)
+      [1] 9: int literal(9)
+
+    Expected one of (first mismatch at [position]):
+    [1] proc foo(a, b: bool)
+    [1] proc foo(x: string)""".unindent)
+    checkpoint $err
+    check err.kind == TypeMismatch
+    check err.passed == @[
+      "int literal(9)"
+    ]
+    check err.mismatches == @[
+      Mismatch(idx: 1, expected: "bool"),
+      Mismatch(idx: 1, expected: "string")
+    ]
+    echo err
+
+  test "Generic type parameter":
+    let err = parseError("""
+      /file/test2.nim(4, 4) Error: type mismatch
+      Expression: "hello" * "world"
+        [1] "hello": string
+        [2] "world": string
+
+      Expected one of (first mismatch at [position]):
+      [1] func `*`[T](x, y: set[T]): set[T]""".unindent())
+    checkpoint $err
+    check err.mismatches == @[
+      Mismatch(idx: 1, expected: "set[T]"),
+    ]

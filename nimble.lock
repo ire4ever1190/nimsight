@@ -65,6 +65,16 @@
       "checksums": {
         "sha1": "9f200310ac8455e07e6d3a9d1b4088677cb63603"
       }
+    },
+    "nort": {
+      "version": "0.2.0",
+      "vcsRevision": "95ce7a1f8171141d8e1c8ca1fc5451a122e34b03",
+      "url": "https://github.com/ire4ever1190/nort",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "89bea109e9ffe8207bc8bfe21e3214721e72c764"
+      }
     }
   },
   "tasks": {}

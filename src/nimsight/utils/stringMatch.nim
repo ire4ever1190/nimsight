@@ -4,7 +4,7 @@
 ## macro matches(inp: string, pat: T, variables: untyped)
 ## ```
 
-import std/[macros, strscans]
+import std/[macros, strscans, pegs]
 
 type Match = object
 proc match*(x: string): Match = Match()
@@ -24,6 +24,13 @@ macro matches(inp, pat: string, variables: untyped): bool =
   vars &= call
 
   result = newStmtList(nnkLetSection.newTree(vars), okSym)
+
+macro matches(inp: string, pat: Peg, variable: untyped): bool =
+  ## Support for pegs in match statement. This finds everything that
+  ## matches the grammar and puts it into the variable
+  let call = newCall(bindSym"findAll", inp)
+  result = quote do:
+    {.error: "I forgot to implement this".}
 
 macro `case`*(match: Match): untyped =
   ## Macro for nicely matching a string against a series of patterns.
