@@ -71,10 +71,11 @@ const sendDiagnostics = MethodDef[tuple[uri: DocumentURI], void](name: "extensio
 lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
   try:
     # Cancel any previous request for this file, then register this as the latest.
+    let myId = ctx.id.unsafeGet()
     currentCheck.with do (checks: var Table[DocumentUri, JsonNode]):
         if uri in checks:
           ctx.cancel(checks[uri])
-        checks[uri] = ctx.id.unsafeGet()
+        checks[uri] = myId
     # Sleep so we debounce the request
     sleep 100
     if not ctx.isCancelled:
@@ -83,6 +84,9 @@ lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
     # Ignore cancellations
     if e.code != RequestCancelled:
       raise e
+  finally:
+    currentCheck.with do (checks: var Table[DocumentUri, JsonNode]):
+      checks.del(uri)
 
 proc requestDiagnostics(ctx: NimContext, uri: DocumentURI) =
   ## Requests the server to send diagnostics to the client
