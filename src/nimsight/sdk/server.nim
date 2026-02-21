@@ -7,7 +7,7 @@ import types, protocol, hooks, params, ./logging, methods
 
 import utils, methods
 
-import threading/[channels, rwlock]
+import pkg/threading/[channels, rwlock]
 
 import pkg/jaysonrpc
 
