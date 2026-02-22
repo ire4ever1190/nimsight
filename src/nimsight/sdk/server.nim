@@ -4,6 +4,7 @@
 import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os]
 
 import types, protocol, hooks, params, ./logging, methods
+import ../config
 
 import utils, methods
 
@@ -38,6 +39,8 @@ type
     results*: ResponseTable
     name*: string
     version*: string
+    config*: NimConfig
+      ## Configuration for the LSP server
     executor: Executor[JsonNode, ptr Server]
 
   NimContext* = Context[ptr Server]
@@ -261,6 +264,7 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
   result = Server(
     name: name,
     version: version,
+    config: NimConfig(),
     executor: initExecutor[JsonNode, ptr Server](),
     queue: newChan[string](),
     orderedQueue: newChan[string](),
@@ -271,8 +275,12 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
       processId: Option[int],
       rootPath: Option[Path],
       rootUri: Option[DocumentURI],
+      initializationOptions: Option[JsonNode],
       workspaceFolders: Option[seq[WorkspaceFolder]]
     ) -> InitializeResult:
+    # Parse configuration
+    ctx.data[].config = parseConfig(initializationOptions)
+
     # Find what is supported depending on what handlers are registered.
     # Some manual capabilities will also need to be added
     result = InitializeResult(

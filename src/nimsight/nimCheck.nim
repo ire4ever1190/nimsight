@@ -179,8 +179,9 @@ proc execProcess*(ctx: NimContext, cmd: string, args: openArray[string], input =
 
 proc getErrors*(ctx: NimContext, content: string, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
+  let nimBinary = ctx.data[].config.nimBinary
   let (outp, _) = ctx.execProcess(
-    findExe("nim"),
+    nimBinary,
     @["check"] & ourOptions & makeOptions(x) & "-",
     input=content,
     workingDir = $x.path.parentDir()
