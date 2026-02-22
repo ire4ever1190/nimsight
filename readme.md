@@ -2,7 +2,7 @@
 
 > Get insight with NimSight
 
-Nim language server based around `nim check`. Has 70% less features and stability compared to other nim LSP solutions.
+Nim language server based around `nim check`
 
 I first started programming Nim using [micro](https://github.com/zyedidia/micro) which just had a linter for Nim which I found helpful enough so I wanted that same experiences in my other editors. Doesn't support auto-complete and likely never will unless [the --suggest option starts working](https://github.com/nim-lang/Nim/blob/4f5c0efaf24e863b26b16d7998eac3bdd830e7be/compiler/commands.nim#L1004)
 
@@ -42,6 +42,20 @@ Add this into the list of LSP servers
     "highlightingModeRegex": "Nim"
   }
 }
+```
+
+#### Helix
+
+Add this into your [languages.toml](https://docs.helix-editor.com/languages.html#language-server-configuration) file
+
+```toml
+[[language]]
+language-servers = ["nimsight"]
+name = "nim"
+
+[language-server.nimsight]
+args = []
+command = "nimsight"
 ```
 
 ### Developing
