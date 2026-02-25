@@ -39,7 +39,10 @@ Add this into the list of LSP servers
     "path": ["%{ENV:HOME}/.nimble/bin", "%{ENV:USERPROFILE}/.nimble/bin"],
     "rootIndicationFilePatterns": ["*.nimble", "config.nims"],
     "url": "https://github.com/ire4ever1190/nimsight",
-    "highlightingModeRegex": "Nim"
+    "highlightingModeRegex": "Nim",
+    "initializationOptions": {
+      "nimBinary": "/path/to/nim"
+    }
   }
 }
 ```
@@ -56,7 +59,17 @@ name = "nim"
 [language-server.nimsight]
 args = []
 command = "nimsight"
+
+[language-server.nimsight.config.nimBinary]
+path = "/path/to/nim"
 ```
+
+### Configuration
+
+The following configuration options can be passed via `initializationOptions`:
+
+- `nimBinary`: Path to the Nim binary to use (defaults to `nim` or `nim.exe`)
+- `nimbleBinary`: Path to the Nimble binary to use (defaults to `nimble` or `nimble.exe`)
 
 ### Developing
 
