@@ -44,11 +44,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1771029072,
-        "narHash": "sha256-DdrHu939RQxfmx4qQc6cI1UcijslovS4mssrXxHxehU=",
+        "lastModified": 1772244731,
+        "narHash": "sha256-VkmlT7Wpp/RdRwVSPDS6KKBfofz/fIoSz8vZ2zw2knQ=",
         "owner": "ire4ever1190",
         "repo": "mkNimbleApp",
-        "rev": "106f1b2a2e320475d69399d3869b08caf186cdcd",
+        "rev": "efd51bdcdd9aabf59f1f5f5faebb7bbaacfc759a",
         "type": "github"
       },
       "original": {
