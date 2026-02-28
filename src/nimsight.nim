@@ -177,7 +177,7 @@ lsp.on(initialized.meth) do (ctx: NimContext):
       """.dedent()
       let answer = ctx.data[].showMessageRequest(msg, Debug, BooleanChoice)
       if answer.get(No) == Yes:
-        discard ctx.execProcess("nimble", ["setup"], workingDir = $root)
+        discard ctx.execProcess(ctx.data[].config.nimbleBinary, ["setup"], workingDir = $root)
 
 # Special handlers, should be handled earlier in case server is busy
 lsp.on("$/cancelRequest") do (id: JsonNode, ctx: NimContext):

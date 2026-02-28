@@ -31,7 +31,7 @@ jobs:
           echo "/opt/nvim-linux-x86_64/bin" >> $GITHUB_PATH
 
       - name: Build
-        run: nimble update && nimble build -d:ci
+        run: nimble build -y --useSystemNim -d:ci
 
       - name: Run Tests
         run: nimble test

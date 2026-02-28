@@ -22,15 +22,37 @@
       }
     },
     "jaysonrpc": {
-      "version": "0.1.0",
-      "vcsRevision": "0f1f4fc64f8824e413a7757128397de0a60b9c73",
+      "version": "0.2.0",
+      "vcsRevision": "9501fe72904df72fbbc6ff3cd0426bf992bd8388",
       "url": "https://github.com/ire4ever1190/jaysonrpc",
       "downloadMethod": "git",
       "dependencies": [
         "threading"
       ],
       "checksums": {
-        "sha1": "45db237c56ca92423b167a645d8e056728381eae"
+        "sha1": "174d20fd0003de4ce16d9b57889d23e5fc8a797a"
+      }
+    },
+    "libdump": {
+      "version": "0.1.2",
+      "vcsRevision": "c30f11e0bf22ed971d0b737aae0d62fa33843c64",
+      "url": "https://github.com/ire4ever1190/libdump",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "fdc0b2a52283dbccad0300a06a9bd4def1a54d9b"
+      }
+    },
+    "legit": {
+      "version": "0.1.1",
+      "vcsRevision": "562c5a3d6a551777dd03de661e2bfd4921ef42a6",
+      "url": "https://github.com/ire4ever1190/legit",
+      "downloadMethod": "git",
+      "dependencies": [
+        "libdump"
+      ],
+      "checksums": {
+        "sha1": "67370273c2a92be3e3bff3efb22c7aa3ad6f9e28"
       }
     },
     "results": {

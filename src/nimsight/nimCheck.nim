@@ -143,7 +143,7 @@ type
 proc raiseCancelled(ctx: NimContext) {.raises: [RPCError].} =
     raise (ref RPCError)(code: RequestCancelled, id: ctx.id)
 
-proc execProcess*(ctx: NimContext, cmd: string, args: openArray[string], input = "", workingDir=""): tuple[output: string, code: int] =
+proc execProcess*(ctx: NimContext, cmd: Path | string, args: openArray[string], input = "", workingDir=""): tuple[output: string, code: int] =
   ## Runs a process, automatically checks if the request has ended and then stops the running process.
   # Don't start a process if the handle is already cancelled
   if ctx.isCancelled(): ctx.raiseCancelled()
@@ -151,7 +151,7 @@ proc execProcess*(ctx: NimContext, cmd: string, args: openArray[string], input =
   debug(fmt"Running `{cmd}` with args {args} in '{workingDir}'")
 
   let process = startProcess(
-    cmd,
+    string(cmd),
     args=args,
     options = {poUsePath, poStdErrToStdOut},
     workingDir=workingDir
@@ -179,8 +179,9 @@ proc execProcess*(ctx: NimContext, cmd: string, args: openArray[string], input =
 
 proc getErrors*(ctx: NimContext, content: string, x: DocumentUri): seq[ParsedError] {.gcsafe.} =
   ## Parses errors from `nim check` into a more structured form
+  let nimBinary = ctx.data[].config.nimBinary
   let (outp, _) = ctx.execProcess(
-    findExe("nim"),
+    nimBinary,
     @["check"] & ourOptions & makeOptions(x) & "-",
     input=content,
     workingDir = $x.path.parentDir()
