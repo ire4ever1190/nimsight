@@ -1,5 +1,5 @@
 ## Configuration for nimsight
-import std/[options, json, jsonutils, os, files, sugar, paths, strformat, logging]
+import std/[options, json, jsonutils, os, files, sugar, paths, strformat]
 
 import pkg/legit
 
