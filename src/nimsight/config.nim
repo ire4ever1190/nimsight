@@ -1,5 +1,5 @@
 ## Configuration for nimsight
-import std/[options, json, jsonutils, os, files, sugar, paths, strformat, cpuinfo]
+import std/[options, json, jsonutils, os, files, sugar, paths, strformat, logging]
 
 import pkg/legit
 
@@ -8,15 +8,12 @@ type NimConfig* = object ## Configuration options for nimsight
     ## Path to the Nim binary to use. If not set, will search PATH for "nim"
   nimbleBinary*: Path
     ## Path to the Nimble binary to use. If not set, will search PATH for "nimble"
-  workers*: int
-    ## Number of threads to use for handling requests. Defaults to number of CPUs
 
 proc initNimConfig(): NimConfig =
   ## Initialises the Nim config with defaults
   result = NimConfig(
     nimBinary: Path(findExe("nim")),
-    nimbleBinary: Path(findExe("nimble")),
-    workers: countProcessors(),
+    nimbleBinary: Path(findExe("nimble"))
   )
 
 let validBinary = validator[Path](
@@ -25,8 +22,7 @@ let validBinary = validator[Path](
 
 let validator = NimConfig.validator()(
     nimBinary = @[validBinary],
-    nimbleBinary = @[validBinary],
-    workers = @[validator[int](val => val >= 2, "Must have atleast 2 workers")],
+    nimbleBinary = @[validBinary]
   )
 
 proc parseConfig*(node: Option[JsonNode]): NimConfig =

@@ -54,6 +54,8 @@ proc checkFile(ctx: NimContext, uri: DocumentUri) {.gcsafe.} =
     # if not file.ranCheck and false:
     #   file.errors = result
     #   file.ranCheck = true
+  if ctx.isCancelled:
+    return
   debug fmt"Got {diagnostics.len} diagnostics"
   sendNotification(publishDiagnostics, PublishDiagnosticsParams(
     uri: uri,

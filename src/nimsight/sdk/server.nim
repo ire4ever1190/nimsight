@@ -1,7 +1,7 @@
 ## This is the server. Its the heart of a language server and handles syncing files
 ## and sending/receving RPC messages
 
-import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os, sets]
+import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os, sets, cpuinfo]
 
 import types, protocol, hooks, params, ./logging, methods
 import ../config
@@ -175,10 +175,11 @@ template makeWorkerThread(queue: untyped): untyped =
   workerThread
 
 
-proc spawnWorkers*(server: var Server, n: int) =
-  ## Spawns `n` workers
-  debug fmt"Starting {server.workers.len} workers"
-  server.workers = newSeq[WorkerThread](n)
+proc spawnWorkers*(server: var Server) =
+  ## Spawns workers for the server
+  let count = countProcessors()
+
+  server.workers = newSeq[WorkerThread](count)
   for i in 0 ..< server.workers.len - 1:
     server.workers[i].createThread(makeWorkerThread(queue), addr server)
   server.workers[^1].createThread(makeWorkerThread(orderedQueue), addr server)
@@ -221,7 +222,7 @@ proc poll*(server: var Server) =
   # initialize the workers.
   # TODO: Some jobs need some kind of affinity to maintain ordering.
   #       e.g. content change events NEED to be applied in order for incremental sync
-  server.spawnWorkers(server.config.workers)
+  server.spawnWorkers()
   # Some methods we want to handle without needing the queue. Mainly so they can be handled
   # if all the workers and full and server is going haywire
   # List them here, and execute here instead of sending them to workers
