@@ -149,8 +149,12 @@ proc handleCalls(rpc: Executor[JsonNode, ptr Server], payload: string, server: p
   let responses = collect:
     for call in calls:
       call()
-  let response = calls.dump(responses)
-  response.map(writeResponse)
+
+  # Don't send back responses for internal methods
+  if "extension/internal/sendDiagnostics" notin calls.names:
+    let response = calls.dump(responses)
+    response.map(writeResponse)
+
 template makeWorkerThread(queue: untyped): untyped =
   proc workerThread(server: ptr Server) {.nimcall, thread.} =
     ## Initialises a worker thread and then handles messages
