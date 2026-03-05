@@ -75,20 +75,6 @@ proc sendPayload[T](payload: sink T) {.gcsafe.} =
   let respBody = $resp
   respBody.writeResponse()
 
-
-proc respond*(request: Message, err: sink ServerError) =
-  ## Responds to a request with an error
-  let payload = ResponseError(
-    code: err.code,
-    message: err.msg,
-    data: option(err.data)
-  )
-  sendPayload(ResponseMessage(id: request.id, error: some payload))
-
-proc respond*(request: Message, payload: sink JsonNode) =
-  ## Responds to a request with a result
-  sendPayload(ResponseMessage(id: request.id, `result`: some payload))
-
 proc send*[T: Message](msg: T) =
   ## Sends a message to the client
   # Need to make sure we are serialising the correct type

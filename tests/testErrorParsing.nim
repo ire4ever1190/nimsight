@@ -127,6 +127,11 @@ stack trace: (most recent call last)
   check err.msg.strip() == "unhandled exception: hello"
   check err.exp == "IOError"
 
+test "Got [EOF]":
+  let err = parseError("""
+/tmp/test.nim(2, 1) Error: expected: ']', but got: '[EOF]'""")
+  check err.msg.strip() == "expected: ']', but got: '[EOF]'"
+
 suite "Type mismatch":
   test "Type mismatch":
     let err = parseError("""

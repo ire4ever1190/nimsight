@@ -1,7 +1,7 @@
 ## This is the server. Its the heart of a language server and handles syncing files
 ## and sending/receving RPC messages
 
-import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os]
+import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os, sets, cpuinfo]
 
 import types, protocol, hooks, params, ./logging, methods
 import ../config
@@ -149,8 +149,12 @@ proc handleCalls(rpc: Executor[JsonNode, ptr Server], payload: string, server: p
   let responses = collect:
     for call in calls:
       call()
-  let response = calls.dump(responses)
-  response.map(writeResponse)
+
+  # Don't send back responses for internal methods
+  if "extension/internal/sendDiagnostics" notin calls.names:
+    let response = calls.dump(responses)
+    response.map(writeResponse)
+
 template makeWorkerThread(queue: untyped): untyped =
   proc workerThread(server: ptr Server) {.nimcall, thread.} =
     ## Initialises a worker thread and then handles messages
@@ -162,6 +166,7 @@ template makeWorkerThread(queue: untyped): untyped =
     info "Starting worker thread for " & astToStr(queue)
     while true:
       let request = server[].queue.recv()
+      debug "Executing job..."
       # Don't process if the server is shutting down
       if not server[].isRunning:
         break
@@ -170,12 +175,15 @@ template makeWorkerThread(queue: untyped): untyped =
   workerThread
 
 
-proc spawnWorkers*(server: var Server, n: int) =
-  ## Spawns `n` workers
-  server.workers = newSeq[WorkerThread](n)
+proc spawnWorkers*(server: var Server) =
+  ## Spawns workers for the server
+  let count = countProcessors()
+
+  server.workers = newSeq[WorkerThread](count)
   for i in 0 ..< server.workers.len - 1:
     server.workers[i].createThread(makeWorkerThread(queue), addr server)
   server.workers[^1].createThread(makeWorkerThread(orderedQueue), addr server)
+  debug "Workers started"
 
 proc shutdown*(server: var Server) =
   ## Shutdowns the server.
@@ -214,8 +222,7 @@ proc poll*(server: var Server) =
   # initialize the workers.
   # TODO: Some jobs need some kind of affinity to maintain ordering.
   #       e.g. content change events NEED to be applied in order for incremental sync
-  # TODO: Add way to configure number of workers
-  server.spawnWorkers(3)
+  server.spawnWorkers()
   # Some methods we want to handle without needing the queue. Mainly so they can be handled
   # if all the workers and full and server is going haywire
   # List them here, and execute here instead of sending them to workers
@@ -234,7 +241,9 @@ proc poll*(server: var Server) =
     savedNotification.meth
   ]
 
+  debug "Starting main loop"
   while true:
+    debug "Reading payload"
     let request = readPayload()
 
     # Very wasteful, but simpliest thing to do
@@ -246,6 +255,8 @@ proc poll*(server: var Server) =
     else:
       server.queue.send($ request)
 
+    debug fmt"Queue size {server.orderedQueue.peek} {server.queue.peek}"
+
 func folders*(rootUri: Option[DocumentURI], rootPath: Option[Path], workspaceFolders: Option[seq[WorkspaceFolder]]): seq[Path] =
   ## Returns all the paths that are in the intialisation
   # Root URI has precedence over rootPath
@@ -256,7 +267,6 @@ func folders*(rootUri: Option[DocumentURI], rootPath: Option[Path], workspaceFol
 
   for folder in workspaceFolders.get(@[]):
     result &= folder.uri.path
-
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers
@@ -305,5 +315,4 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     # Add a listener for the parent process
     if processId.isSome:
       t.createThread(checkProcess, (ctx.data, processId.unsafeGet))
-
 export hooks, jaysonrpc

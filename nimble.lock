@@ -22,15 +22,15 @@
       }
     },
     "jaysonrpc": {
-      "version": "0.2.0",
-      "vcsRevision": "9501fe72904df72fbbc6ff3cd0426bf992bd8388",
+      "version": "0.3.0",
+      "vcsRevision": "5becd9e445100df3b47e0a12e48cf36d69b252d2",
       "url": "https://github.com/ire4ever1190/jaysonrpc",
       "downloadMethod": "git",
       "dependencies": [
         "threading"
       ],
       "checksums": {
-        "sha1": "174d20fd0003de4ce16d9b57889d23e5fc8a797a"
+        "sha1": "66951cd559847e15b6383a9bc3991be10564650d"
       }
     },
     "libdump": {
@@ -77,7 +77,7 @@
     },
     "minilru": {
       "version": "0.1.0",
-      "vcsRevision": "c35304151ea39077330f225e3837450990d55e48",
+      "vcsRevision": "6dd93feb60f4cded3c05e7af7209cf63fb677893",
       "url": "https://github.com/status-im/nim-minilru",
       "downloadMethod": "git",
       "dependencies": [
@@ -85,17 +85,17 @@
         "unittest2"
       ],
       "checksums": {
-        "sha1": "9f200310ac8455e07e6d3a9d1b4088677cb63603"
+        "sha1": "0be03a5da29fdd4409ea74a60fd0ccce882601b4"
       }
     },
     "nort": {
-      "version": "0.2.0",
-      "vcsRevision": "95ce7a1f8171141d8e1c8ca1fc5451a122e34b03",
+      "version": "0.2.1",
+      "vcsRevision": "26facac40cd600d332e22ca600fff32d862a9525",
       "url": "https://github.com/ire4ever1190/nort",
       "downloadMethod": "git",
       "dependencies": [],
       "checksums": {
-        "sha1": "89bea109e9ffe8207bc8bfe21e3214721e72c764"
+        "sha1": "d4583dde05ffcf8148b449760acefcb21fd2e475"
       }
     }
   },
