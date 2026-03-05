@@ -1,7 +1,7 @@
 ## This is the server. Its the heart of a language server and handles syncing files
 ## and sending/receving RPC messages
 
-import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os]
+import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os, sets]
 
 import types, protocol, hooks, params, ./logging, methods
 import ../config
@@ -166,6 +166,7 @@ template makeWorkerThread(queue: untyped): untyped =
     info "Starting worker thread for " & astToStr(queue)
     while true:
       let request = server[].queue.recv()
+      debug "Executing job..."
       # Don't process if the server is shutting down
       if not server[].isRunning:
         break
@@ -176,10 +177,12 @@ template makeWorkerThread(queue: untyped): untyped =
 
 proc spawnWorkers*(server: var Server, n: int) =
   ## Spawns `n` workers
+  debug fmt"Starting {server.workers.len} workers"
   server.workers = newSeq[WorkerThread](n)
   for i in 0 ..< server.workers.len - 1:
     server.workers[i].createThread(makeWorkerThread(queue), addr server)
   server.workers[^1].createThread(makeWorkerThread(orderedQueue), addr server)
+  debug "Workers started"
 
 proc shutdown*(server: var Server) =
   ## Shutdowns the server.
@@ -218,8 +221,7 @@ proc poll*(server: var Server) =
   # initialize the workers.
   # TODO: Some jobs need some kind of affinity to maintain ordering.
   #       e.g. content change events NEED to be applied in order for incremental sync
-  # TODO: Add way to configure number of workers
-  server.spawnWorkers(3)
+  server.spawnWorkers(server.config.workers)
   # Some methods we want to handle without needing the queue. Mainly so they can be handled
   # if all the workers and full and server is going haywire
   # List them here, and execute here instead of sending them to workers
@@ -238,7 +240,9 @@ proc poll*(server: var Server) =
     savedNotification.meth
   ]
 
+  debug "Starting main loop"
   while true:
+    debug "Reading payload"
     let request = readPayload()
 
     # Very wasteful, but simpliest thing to do
@@ -250,6 +254,8 @@ proc poll*(server: var Server) =
     else:
       server.queue.send($ request)
 
+    debug fmt"Queue size {server.orderedQueue.peek + server.queue.peek}"
+
 func folders*(rootUri: Option[DocumentURI], rootPath: Option[Path], workspaceFolders: Option[seq[WorkspaceFolder]]): seq[Path] =
   ## Returns all the paths that are in the intialisation
   # Root URI has precedence over rootPath
@@ -260,7 +266,6 @@ func folders*(rootUri: Option[DocumentURI], rootPath: Option[Path], workspaceFol
 
   for folder in workspaceFolders.get(@[]):
     result &= folder.uri.path
-
 
 proc initServer*(name: string, version = NimblePkgVersion): Server =
   ## Initialises the server. Should be called since it registers

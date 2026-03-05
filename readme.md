@@ -70,6 +70,7 @@ The following configuration options can be passed via `initializationOptions`:
 
 - `nimBinary`: Path to the Nim binary to use (defaults to `nim` or `nim.exe`)
 - `nimbleBinary`: Path to the Nimble binary to use (defaults to `nimble` or `nimble.exe`)
+- `workers`: Number of threads to use for workers (minimum 2, defaults to number of processors)
 
 ### Developing
 
