@@ -255,7 +255,7 @@ proc poll*(server: var Server) =
     else:
       server.queue.send($ request)
 
-    debug fmt"Queue size {server.orderedQueue.peek + server.queue.peek}"
+    debug fmt"Queue size {server.orderedQueue.peek} {server.queue.peek}"
 
 func folders*(rootUri: Option[DocumentURI], rootPath: Option[Path], workspaceFolders: Option[seq[WorkspaceFolder]]): seq[Path] =
   ## Returns all the paths that are in the intialisation
@@ -315,5 +315,4 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
     # Add a listener for the parent process
     if processId.isSome:
       t.createThread(checkProcess, (ctx.data, processId.unsafeGet))
-
 export hooks, jaysonrpc

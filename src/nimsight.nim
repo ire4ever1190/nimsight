@@ -51,11 +51,10 @@ proc checkFile(ctx: NimContext, uri: DocumentUri) {.gcsafe.} =
 
   let diagnostics = ctx.getDiagnostics(content, root, uri)
     # Store the errors in the cache
-    # if not file.ranCheck and false:
-    #   file.errors = result
-    #   file.ranCheck = true
-  if ctx.isCancelled:
-    return
+  # if not file.ranCheck and not ctx.isCancelled:
+    # file.errors = result
+    # file.ranCheck = true
+
   debug fmt"Got {diagnostics.len} diagnostics"
   sendNotification(publishDiagnostics, PublishDiagnosticsParams(
     uri: uri,
@@ -71,9 +70,9 @@ var currentCheck = protectReadWrite(initTable[DocumentUri, JsonNode]())
 const sendDiagnostics = MethodDef[tuple[uri: DocumentURI], void](name: "extension/internal/sendDiagnostics")
 
 lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
+  let myId = ctx.id.get()
   try:
     # Cancel any previous request for this file, then register this as the latest.
-    let myId = ctx.id.unsafeGet()
     currentCheck.with do (checks: var Table[DocumentUri, JsonNode]):
         if uri in checks:
           ctx.cancel(checks[uri])
@@ -88,13 +87,16 @@ lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
       raise e
   finally:
     currentCheck.with do (checks: var Table[DocumentUri, JsonNode]):
-      checks.del(uri)
+      # Clear out so the table doesn't grow
+      if uri in checks and checks[uri] == myId:
+        checks.del(uri)
 
 proc requestDiagnostics(ctx: NimContext, uri: DocumentURI) =
   ## Requests the server to send diagnostics to the client
   var req = sendDiagnostics.call((uri,))
   req.id = $genNanoID()
-  ctx.data[].queue.send($ req.toJson())
+  if not ctx.data[].queue.trySend($ req.toJson()):
+    error "Failed to send internal diagnostics call"
 
 lsp.on(changedNotification.meth) do (ctx: NimContext, textDocument: VersionedTextDocumentIdentifier, contentChanges: seq[TextDocumentContentChangeEvent]) {.gcsafe.}:
   updateFile(DidChangeTextDocumentParams(textDocument: textDocument, contentChanges: contentChanges))
@@ -122,7 +124,7 @@ lsp.on(selectionRange.meth) do (ctx: NimContext, params: SelectionRangeParams) -
 
 lsp.on(codeAction.meth) do (ctx: NimContext, textDocument: TextDocumentIdentifier, range: Range, context: CodeActionContext) -> seq[CodeAction] {.gcsafe.}:
   # Find the node that the params are referring to
-  fileStore.with do (files: var FileStore) -> seq[CodeAction]:
+  result = fileStore.with do (files: var FileStore) -> seq[CodeAction]:
     return getCodeActions(ctx, files, CodeActionParams(
       textDocument: textDocument,
       range: range,
