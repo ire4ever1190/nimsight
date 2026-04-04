@@ -158,6 +158,7 @@ macro rewriteHandleJson(inp: proc): proc =
     params = params,
     body = newStmtList(newCall(ident"toJsonHandleOptions", body))
   )
+  echo result.toStrLit
 
 proc on*(server: var Server, meth: string, handler: proc) =
   ## Adds a handler for an event
