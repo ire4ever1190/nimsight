@@ -214,7 +214,7 @@ type
     codeDescription*: Option[CodeDescription]
     source*: Option[string]
     message*: string
-    tags*: Option[seq[DiagnosticTag]]
+    tags*: seq[DiagnosticTag]
     relatedInformation*: Option[seq[DiagnosticRelatedInformation]]
     data*: Option[JsonNode] # Maybe make this generic?
 
@@ -439,4 +439,3 @@ proc initPos*(line: SomeInteger, col: SomeInteger): Position =
     result.character = uint col - 1
   if line != 0:
     result.line = uint line - 1
-
