@@ -1,7 +1,7 @@
 ## This is the server. Its the heart of a language server and handles syncing files
 ## and sending/receving RPC messages
 
-import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os, sets, cpuinfo]
+import std/[tables, json, jsonutils, strutils, logging, strformat, options, locks, typedthreads, isolation, atomics, sugar, paths, os, sets, cpuinfo, macros]
 
 import types, protocol, hooks, params, ./logging, methods
 import ../config
@@ -137,9 +137,31 @@ proc showMessageRequest*[T: enum](
   if resp.isSome():
     return parseEnum[T](resp.unsafeGet()).some()
 
+macro rewriteHandleJson(inp: proc): proc =
+  ## Adds a wrapper around the inp that handles converting to JSON.
+  ## This lets us handle the conversion instead of jaysonrpc
+  let
+    typeDecl = inp.getTypeImpl()
+    body = newCall(inp)
+  let retType = typeDecl[0][0]
+  # For void returns, we don't need to change the type so just return it
+  if retType.eqIdent("void") or retType.kind == nnkEmpty:
+    return inp
+
+  var params = @[ident "JsonNode"]
+  for param in typeDecl[0][1 .. ^1]:
+    let newParam = ident param[0].strVal
+    params &= newIdentDefs(newParam, param[1], param[2])
+    body &= newParam
+
+  result = newProc(
+    params = params,
+    body = newStmtList(newCall(ident"toJsonHandleOptions", body))
+  )
+
 proc on*(server: var Server, meth: string, handler: proc) =
   ## Adds a handler for an event
-  server.executor.on(meth, handler)
+  server.executor.on(meth, rewriteHandleJson(handler))
 
 
 proc handleCalls(rpc: Executor[JsonNode, ptr Server], payload: string, server: ptr Server) =

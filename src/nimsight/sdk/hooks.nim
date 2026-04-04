@@ -30,6 +30,31 @@ proc toJsonHook*[V](t: Table[DocumentURI, V], opt = initToJsonOptions()): JsonNo
     # not sure if $k has overhead for string
     result[$k] = toJson(v, opt)
 
+proc toJsonHandleOptions*[T](val: T, opt = initToJsonOptions()): JsonNode {.gcsafe.} =
+  ## Converts an object to JSON. Option fields are not included in the final output JSON.
+  ## Technically the types are `field?: type` and not `field: type | null` so we need to
+  ## remove it if missing
+  when T is JsonNode:
+    val
+  elif T is object or T is (ref object):
+    result = newJObject()
+    for field, value in (when T is ref: val[] else: val).fieldPairs:
+      when typeof(value) is Option:
+        if value.isSome():
+          result[field] = value.unsafeGet().toJsonHandleOptions()
+      else:
+        result[field] = value.toJsonHandleOptions()
+  elif T is seq or T is array:
+    result = newJArray()
+    for item in val:
+      result &= item.toJsonHandleOptions()
+  elif T is void:
+    result = newJNull()
+  else:
+    {.gcsafe.}:
+      result = val.toJson(opt)
+
+
 proc toJsonHook*(r: ResponseMessage, options: ToJsonOptions): JsonNode =
   result = %* {
     "jsonrpc": "2.0",
@@ -42,4 +67,3 @@ proc toJsonHook*(r: ResponseMessage, options: ToJsonOptions): JsonNode =
   else:
     result["error"] = r.error.unsafeGet().toJson(options)
     stderr.write(result["error"].pretty())
-

@@ -130,6 +130,7 @@ lsp.on(codeAction.meth) do (ctx: NimContext, textDocument: TextDocumentIdentifie
       range: range,
       context: context
     ))
+  debug fmt"Returning {result.len} code actions"
 
 lsp.on(symbolDefinition.meth) do (ctx: NimContext, textDocument: TextDocumentIdentifier, position: Position) -> Option[Location] {.gcsafe.}:
   # See if we can find a unique symbol in the outline

@@ -68,7 +68,7 @@ type
   CodeAction* = object
     title*: string
     kind*: Option[CodeActionKind]
-    diagnostics*: Option[seq[Diagnostic]]
+    diagnostics*: seq[Diagnostic]
     isPreferred: Option[bool]
     disabled: Option[tuple[reason: string]]
     edit*: Option[WorkspaceEdit]

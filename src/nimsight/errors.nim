@@ -241,15 +241,16 @@ proc initMismatch(idx: int, procHeader: string): Mismatch =
 
   raise (ref ValueError)(msg: fmt"Failed to find parameter at {idx} for {procHeader}")
 
-proc parseError*(msg: string): ParsedError =
+proc parseError*(msg: string): ParsedError {.gcsafe.} =
   ## Given a full error message, it returns a parsed error.
   ## "full error message" meaning it handles a full block separated by UnitSep (See --unitsep in Nim).
 
   # Parse out information from the error message.
   # All 'generic/template instantiation' messages come before the actual message
-  let lines = collect:
-    for match in errGrammar.match(msg):
-      match
+  {.gcsafe.}:
+    let lines = collect:
+      for match in (*errGrammar).match(msg).get():
+        match
 
   # Usually happens when the compiler segfaults.
   # Best to raise an error instead of letting the whole server crash
@@ -306,17 +307,18 @@ proc parseError*(msg: string): ParsedError =
     # Add the calls as related information
     for line in calls.splitLines():
       if line.isEmptyOrWhitespace(): continue
-      let err = errGrammar.match(line.strip(chars = {'>'} + Whitespace)).get().readError()
+      {.gcsafe.}:
+        let err = errGrammar.match(line.strip(chars = {'>'} + Whitespace)).get().readError()
       result.relatedInfo &= RelatedInfo(
         msg: err.msg,
         location: err.location
       )
-
-  let mismatch = mismatchGrammar.match(result.msg)
-  if mismatch.isSome:
-    {.cast(uncheckedAssign).}:
-      result.kind = TypeMismatch
-    result.passed = mismatch.get().passedTypes
-    result.mismatches = collect:
-      for mismatch in mismatch.get().mismatches:
-        initMismatch(mismatch.position, mismatch.decl)
+  {.gcsafe.}:
+    let mismatch = mismatchGrammar.match(result.msg)
+    if mismatch.isSome:
+      {.cast(uncheckedAssign).}:
+        result.kind = TypeMismatch
+      result.passed = mismatch.get().passedTypes
+      result.mismatches = collect:
+        for mismatch in mismatch.get().mismatches:
+          initMismatch(mismatch.position, mismatch.decl)
