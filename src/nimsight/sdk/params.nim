@@ -70,7 +70,6 @@ type
     kind*: Option[CodeActionKind]
     diagnostics*: seq[Diagnostic]
     isPreferred: Option[bool]
-    disabled: Option[tuple[reason: string]]
     edit*: Option[WorkspaceEdit]
     command: Option[Command]
     data*: Option[JsonNode]

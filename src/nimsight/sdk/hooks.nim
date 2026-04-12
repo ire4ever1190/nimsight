@@ -3,7 +3,7 @@
 {.used.}
 
 import std/[json, jsonutils, options, strtabs, tables]
-
+import std/macros
 import types
 
 #
@@ -16,10 +16,37 @@ proc fromJsonHook*(ev: var TextDocumentContentChangeEvent, json: JsonNode, optio
   else:
     ev = TextDocumentContentChangeEvent(incremental: false, text: json["text"].getStr())
 
-
 #
 # To JSON
 #
+
+proc toJsonHandleOptions*[T](val: T, opt = initToJsonOptions()): JsonNode {.gcsafe.} =
+  when T is JsonNode:
+    if val == nil: newJNull() else: val
+  elif T is object or T is (ref object):
+    result = newJObject()
+    when T is ref:
+      if val == nil:
+        return
+    for field, value in (when T is ref: val[] else: val).fieldPairs:
+      when field == "documentChanges":
+        static: assert typeof(value) is Option
+      else:
+        when typeof(value) is Option:
+          if value.isSome():
+            result[field] = value.unsafeGet().toJsonHandleOptions(opt)
+        else:
+          result[field] = value.toJsonHandleOptions(opt)
+  elif T is seq or T is array:
+    result = newJArray()
+    for item in val:
+      result &= item.toJsonHandleOptions(opt)
+  else:
+    {.gcsafe.}:
+      when compiles(val == nil):
+        result = if val == nil: newJNull() else: val.toJson(opt)
+      else:
+        result = val.toJson(opt)
 
 proc toJsonHook*(c: ErrorCode, options: ToJsonOptions): JsonNode =
   return newJInt(c.ord)
@@ -28,27 +55,7 @@ proc toJsonHook*[V](t: Table[DocumentURI, V], opt = initToJsonOptions()): JsonNo
   result = newJObject()
   for k, v in pairs(t):
     # not sure if $k has overhead for string
-    result[$k] = toJson(v, opt)
-
-template toJsonHandleOptions*[T](val: T, opt = initToJsonOptions()): JsonNode {.gcsafe.} =
-  when T is JsonNode:
-    if val == nil: newJNull() else: val
-  elif T is object or T is (ref object):
-    result = newJObject()
-    for field, value in (when T is ref: val[] else: val).fieldPairs:
-      when typeof(value) is Option:
-        if value.isSome():
-          result[field] = value.unsafeGet().toJsonHandleOptions(opt)
-      else:
-        result[field] = value.toJsonHandleOptions(opt)
-  elif T is seq or T is array:
-    result = newJArray()
-    for item in val:
-      result &= item.toJsonHandleOptions(opt)
-  else:
-    {.gcsafe.}:
-      result = val.toJson(opt)
-
+    result[$k] = toJsonHandleOptions(v, opt)
 
 proc toJsonHook*(r: ResponseMessage, options: ToJsonOptions): JsonNode =
   result = %* {
@@ -58,7 +65,7 @@ proc toJsonHook*(r: ResponseMessage, options: ToJsonOptions): JsonNode =
     result["id"] = r.id
   assert r.`result`.isSome() xor r.error.isSome(), "Either result or error must be set in ResponseMessage"
   if r.`result`.isSome():
-    result["result"] = r.`result`.unsafeGet().toJson(options)
+    result["result"] = r.`result`.unsafeGet().toJsonHandleOptions(options)
   else:
     result["error"] = r.error.unsafeGet().toJson(options)
     stderr.write(result["error"].pretty())

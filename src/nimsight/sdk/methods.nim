@@ -28,10 +28,10 @@ proc defMethod[P, R](meth: string): RPCMethod[P, R] =
 proc init*[P: not void, R, N](msg: RPCMessage[P, R, N], params: P): auto =
   ## Constructs a message for `msg`
   when N:
-    NotificationMessage(`method`: msg.meth, params: some params.toJson())
+    NotificationMessage(`method`: msg.meth, params: some params.toJsonHandleOptions())
   else:
     let id = nextRequestID()
-    result = RequestMessage(`method`: msg.meth, params: params.toJson(), id: some id.toJson())
+    result = RequestMessage(`method`: msg.meth, params: params.toJsonHandleOptions(), id: some id.toJson())
 
 proc init*[R, N](msg: RPCMessage[void, R, N]): auto =
   ## Constructs a message. Specialisation that doesn't take parameters
@@ -88,4 +88,3 @@ const
     ## Needed when client doesn't support pull diagnostics (kate)
   knockoff* = defNotification[void]("extension/internal/knockoff")
     ## Custom method for making an internal worker knock off from work
-
