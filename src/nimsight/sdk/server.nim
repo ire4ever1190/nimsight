@@ -276,6 +276,7 @@ proc poll*(server: var Server) =
       server.orderedQueue.send($ request)
     else:
       server.queue.send($ request)
+    debug fmt"Queued item: count is {server.orderedQueue.peek + server.queue.peek}"
 
     debug fmt"Queue size {server.orderedQueue.peek} {server.queue.peek}"
 
