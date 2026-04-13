@@ -137,7 +137,7 @@ proc showMessageRequest*[T: enum](
   if resp.isSome():
     return parseEnum[T](resp.unsafeGet()).some()
 
-macro rewriteHandleJson(inp: proc): proc =
+macro rewriteHandleJson*(inp: proc): proc =
   ## Adds a wrapper around the inp that handles converting to JSON.
   ## This lets us handle the conversion instead of jaysonrpc
   let
@@ -158,11 +158,10 @@ macro rewriteHandleJson(inp: proc): proc =
     params = params,
     body = newStmtList(newCall(ident"toJsonHandleOptions", body))
   )
-  echo result.toStrLit
 
-proc on*(server: var Server, meth: string, handler: proc) =
+template on*(server: var Server, meth: string, handler: proc) =
   ## Adds a handler for an event
-  server.executor.on(meth, rewriteHandleJson(handler))
+  jaysonrpc.on(server.executor, meth, rewriteHandleJson(handler))
 
 
 proc handleCalls(rpc: Executor[JsonNode, ptr Server], payload: string, server: ptr Server) =
@@ -311,6 +310,7 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
       initializationOptions: Option[JsonNode],
       workspaceFolders: Option[seq[WorkspaceFolder]]
     ) -> InitializeResult:
+    stderr.writeLine "INIT HANDLER START"
     # Parse configuration
     ctx.data[].config = parseConfig(initializationOptions)
 

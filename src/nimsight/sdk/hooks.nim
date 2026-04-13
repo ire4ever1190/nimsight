@@ -5,6 +5,7 @@
 import std/[json, jsonutils, options, strtabs, tables]
 import std/macros
 import types
+import utils/union
 
 #
 # From JSON
@@ -20,33 +21,31 @@ proc fromJsonHook*(ev: var TextDocumentContentChangeEvent, json: JsonNode, optio
 # To JSON
 #
 
+proc toJsonHandleOptions*(val: JsonNode, opt = initToJsonOptions()): JsonNode {.gcsafe.} =
+  return val
+
+proc toJsonHandleOptions*[T](val: openArray[T], opt = initToJsonOptions()): JsonNode {.gcsafe.} =
+  result = newJArray()
+  for item in val:
+    result &= item.toJsonHandleOptions(opt)
+
 proc toJsonHandleOptions*[T](val: T, opt = initToJsonOptions()): JsonNode {.gcsafe.} =
-  when T is JsonNode:
-    if val == nil: newJNull() else: val
-  elif T is object or T is (ref object):
-    result = newJObject()
-    when T is ref:
-      if val == nil:
-        return
-    for field, value in (when T is ref: val[] else: val).fieldPairs:
-      when field == "documentChanges":
-        static: assert typeof(value) is Option
-      else:
-        when typeof(value) is Option:
-          if value.isSome():
-            result[field] = value.unsafeGet().toJsonHandleOptions(opt)
-        else:
-          result[field] = value.toJsonHandleOptions(opt)
-  elif T is seq or T is array:
-    result = newJArray()
-    for item in val:
-      result &= item.toJsonHandleOptions(opt)
-  else:
-    {.gcsafe.}:
-      when compiles(val == nil):
-        result = if val == nil: newJNull() else: val.toJson(opt)
-      else:
-        result = val.toJson(opt)
+  {.gcsafe.}:
+    val.toJson(opt)
+
+proc toJsonHandleOptions*[T: object | ref object](val: T, opt = initToJsonOptions()): JsonNode {.gcsafe.} =
+  mixin toJsonHandleOptions
+  result = newJObject()
+  when T is ref:
+    if val.isNil():
+      return newJNull()
+  for field, value in (when T is ref: val[] else: val).fieldPairs:
+    # Options won't appear full stop
+    when typeof(value) is Option:
+      if value.isSome():
+        result[field] = value.unsafeGet().toJsonHandleOptions(opt)
+    else:
+      result[field] = value.toJsonHandleOptions(opt)
 
 proc toJsonHook*(c: ErrorCode, options: ToJsonOptions): JsonNode =
   return newJInt(c.ord)
