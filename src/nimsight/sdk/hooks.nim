@@ -24,28 +24,33 @@ proc fromJsonHook*(ev: var TextDocumentContentChangeEvent, json: JsonNode, optio
 proc toJsonHandleOptions*(val: JsonNode, opt = initToJsonOptions()): JsonNode {.gcsafe.} =
   return val
 
-proc toJsonHandleOptions*[T](val: openArray[T], opt = initToJsonOptions()): JsonNode {.gcsafe.} =
-  result = newJArray()
-  for item in val:
-    result &= item.toJsonHandleOptions(opt)
-
 proc toJsonHandleOptions*[T](val: T, opt = initToJsonOptions()): JsonNode {.gcsafe.} =
-  {.gcsafe.}:
-    val.toJson(opt)
-
-proc toJsonHandleOptions*[T: object | ref object](val: T, opt = initToJsonOptions()): JsonNode {.gcsafe.} =
-  mixin toJsonHandleOptions
-  result = newJObject()
-  when T is ref:
-    if val.isNil():
-      return newJNull()
-  for field, value in (when T is ref: val[] else: val).fieldPairs:
-    # Options won't appear full stop
-    when typeof(value) is Option:
-      if value.isSome():
-        result[field] = value.unsafeGet().toJsonHandleOptions(opt)
+  when T is seq:
+    result = newJArray()
+    for item in val:
+      result &= item.toJsonHandleOptions(opt)
+  elif T is object or T is (ref object):
+    when T is Union:
+      val.getCurrentField:
+        return it.toJsonHandleOptions(opt)
+    elif compiles(toJsonHook(val, opt)):
+      {.gcsafe.}:
+        return toJsonHook(val, opt)
     else:
-      result[field] = value.toJsonHandleOptions(opt)
+      mixin toJsonHandleOptions
+      result = newJObject()
+      when T is ref:
+        if val.isNil():
+          return newJNull()
+      for field, value in (when T is ref: val[] else: val).fieldPairs:
+        when typeof(value) is Option:
+          if value.isSome():
+            result[field] = value.unsafeGet().toJsonHandleOptions(opt)
+        else:
+          result[field] = value.toJsonHandleOptions(opt)
+  else:
+    {.gcsafe.}:
+      val.toJson(opt)
 
 proc toJsonHook*(c: ErrorCode, options: ToJsonOptions): JsonNode =
   return newJInt(c.ord)

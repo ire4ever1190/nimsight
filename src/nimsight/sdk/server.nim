@@ -310,7 +310,6 @@ proc initServer*(name: string, version = NimblePkgVersion): Server =
       initializationOptions: Option[JsonNode],
       workspaceFolders: Option[seq[WorkspaceFolder]]
     ) -> InitializeResult:
-    stderr.writeLine "INIT HANDLER START"
     # Parse configuration
     ctx.data[].config = parseConfig(initializationOptions)
 
