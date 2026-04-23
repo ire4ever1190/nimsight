@@ -11,7 +11,7 @@ bin = @["nimsight"]
 # Dependencies
 
 requires "nim >= 2.2.4"
-requires "anano ^= 0.2.1"
+requires "anano == 0.2.1"
 requires "threading#c5a39a0"
 requires "gh:status-im/nim-minilru#6dd93fe"
 requires "gh:ire4ever1190/jaysonrpc >= 0.3.0"
