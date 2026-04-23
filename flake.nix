@@ -28,7 +28,7 @@
       {
         packages.default = mkNimbleApp {
           src = ./.;
-          nimbleHash = "sha256-Xl/6X97TwpNUwQtF7Nlpb+jKzjXkuFD3JqICM1p6OdU=";
+          nimbleHash = "sha256-gV4XSrG+oHgx7p93B7eP+6OrfLbxK7dN2UqozpKsack=";
 
           checkInputs = [
             pkgs.neovim # Tests use neovim
