@@ -65,7 +65,7 @@ addHandler(newLSPLogger())
 
 var lsp = initServer("NimSight")
 
-var currentCheck = protectReadWrite(initTable[DocumentUri, JsonNode]())
+var currentCheck = protectReadWrite(initTable[DocumentUri, ID]())
 
 const sendDiagnostics = MethodDef[tuple[uri: DocumentURI], void](name: "extension/internal/sendDiagnostics")
 
@@ -73,7 +73,7 @@ lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
   let myId = ctx.id.get()
   try:
     # Cancel any previous request for this file, then register this as the latest.
-    currentCheck.with do (checks: var Table[DocumentUri, JsonNode]):
+    currentCheck.with do (checks: var Table[DocumentUri, ID]):
         if uri in checks:
           ctx.cancel(checks[uri])
         checks[uri] = myId
@@ -86,7 +86,7 @@ lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
     if e.code != RequestCancelled:
       raise e
   finally:
-    currentCheck.with do (checks: var Table[DocumentUri, JsonNode]):
+    currentCheck.with do (checks: var Table[DocumentUri, ID]):
       # Clear out so the table doesn't grow
       if uri in checks and checks[uri] == myId:
         checks.del(uri)
@@ -185,7 +185,7 @@ lsp.on(initialized.meth) do (ctx: NimContext):
         discard ctx.execProcess(ctx.data[].config.nimbleBinary, ["setup"], workingDir = $root)
 
 # Special handlers, should be handled earlier in case server is busy
-lsp.on("$/cancelRequest") do (id: JsonNode, ctx: NimContext):
+lsp.on("$/cancelRequest") do (id: ID, ctx: NimContext):
   info "Cancelling ", id
   ctx.cancel(id)
 
