@@ -7,7 +7,7 @@ import ../sdk/[types, params, server]
 import ../[customast, files]
 import ../utils/ast
 import ./utils
-import std/[strformat, options, tables, sugar, logging]
+import std/[strformat, options, tables, sugar]
 
 proc getObjectIdents(x: TreeView, idx: NodeIdx, idents: var seq[NodeIdx]) =
   ## Recursive function to find all the idents inside an object
