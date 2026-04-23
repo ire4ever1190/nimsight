@@ -65,7 +65,7 @@ type
     ## Used to unpack a tuple type into `A | B | C`.
     ## Useful for generic programming
 
-template getCurrentField*(x: Union, body: untyped) =
+template getCurrentField(x: Union, body: untyped) =
   ## Returns the current field.
   var first = true
   for field, value in x.fieldPairs:
@@ -153,3 +153,8 @@ proc fromJsonHook*(a: var Union, b: JsonNode, opt = JOptions()) =
     except JsonKindError, JsonParsingError, ValueError:
       discard
   raise (ref ValueError)(msg: "Unable to parse " & $U)
+
+
+proc toJsonHook*(val: Union, opt = initToJsonOptions()): JsonNode =
+  val.getCurrentField:
+    return it.toJsonHandleOptions(opt)

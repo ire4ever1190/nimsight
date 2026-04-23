@@ -30,10 +30,7 @@ proc toJsonHandleOptions*[T](val: T, opt = initToJsonOptions()): JsonNode {.gcsa
     for item in val:
       result &= item.toJsonHandleOptions(opt)
   elif T is object or T is (ref object):
-    when T is Union:
-      val.getCurrentField:
-        return it.toJsonHandleOptions(opt)
-    elif compiles(toJsonHook(val, opt)):
+    when compiles(toJsonHook(val, opt)):
       {.gcsafe.}:
         return toJsonHook(val, opt)
     else:
