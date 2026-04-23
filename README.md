@@ -78,3 +78,9 @@ Code is broken into two main sections
 - `src/nimsight.nim`: Main entry point, registers all the handlers
 - `src/nimsight/`: Contains code for Nim related stuff
 - `src/nimsight/sdk`: Contains an SDK for interacting with language servers. Can be used outside of this
+
+When running tests, make sure to build `nimsight` first e.g.
+```bash
+nimble build
+nim r tests/testFull.nim
+```

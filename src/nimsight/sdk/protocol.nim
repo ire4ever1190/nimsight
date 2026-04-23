@@ -69,9 +69,8 @@ proc writeResponse*(respBody: string) =
     stdout.write(respBody)
     stdout.flushFile()
 
-proc sendPayload[T](payload: sink T) {.gcsafe.} =
-  {.gcsafe.}:
-    let resp = payload.toJson()
+proc sendPayload[T](payload: sink T) =
+  let resp = payload.toJsonHandleOptions()
   let respBody = $resp
   respBody.writeResponse()
 
@@ -80,14 +79,13 @@ proc send*[T: Message](msg: T) =
   # Need to make sure we are serialising the correct type
   msg.sendPayload()
 
-proc sendNotification*[P](meth: RPCNotification[P], payload: P) {.gcsafe.} =
-  {.gcsafe.}:
-    send(
-      NotificationMessage(
-        `method`: meth.meth,
-        params: some payload.toJson()
-      )
+proc sendNotification*[P](meth: RPCNotification[P], payload: P) =
+  send(
+    NotificationMessage(
+      `method`: meth.meth,
+      params: some payload.toJsonHandleOptions()
     )
+  )
 
 var requestID: Atomic[int]
   ## Global counter for request ID since most implementations only support integers
@@ -107,8 +105,8 @@ proc sendRequestMessage*[P, R](msg: RPCMethod[P, R], payload: P): int {.gcsafe.}
     send(
       RequestMessage(
         `method`: msg.meth,
-        params: payload.toJson(),
-        id: some toJson(result)
+        params: payload.toJsonHandleOptions(),
+        id: some result.toJsonHandleOptions()
       )
     )
 

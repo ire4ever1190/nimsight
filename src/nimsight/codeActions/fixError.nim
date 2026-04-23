@@ -9,7 +9,7 @@ import ./utils
 import std/[strformat, options, tables, sugar]
 
 
-proc createFix*(e: ParsedError, node: NodePtr, diagnotics: seq[Diagnostic]): seq[CodeAction] =
+proc createFix*(e: ParsedError, node: NodePtr, diagnostics: seq[Diagnostic]): seq[CodeAction] =
   ## Returns possibly fixes for an error
   case e.kind
   of Unknown:
@@ -17,7 +17,7 @@ proc createFix*(e: ParsedError, node: NodePtr, diagnotics: seq[Diagnostic]): seq
     for option in e.possibleSymbols:
       result &= CodeAction(
         title: fmt"Rename to `{option}`",
-        diagnostics: some newSeq[Diagnostic](),
+        diagnostics: diagnostics,
         kind: some QuickFix,
         edit: some WorkspaceEdit(
             changes: some toTable({

@@ -11,6 +11,28 @@
         "sha1": "bc5242cbfd4feb63779f33d6d433d0a65b7dca75"
       }
     },
+    "libdump": {
+      "version": "0.5.2",
+      "vcsRevision": "7c03ae4377f5b1b62d53a934bc68c1d55c5400dc",
+      "url": "https://github.com/ire4ever1190/libdump",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "939b77b76e5527de4bb10aa2df428f87a16a64d6"
+      }
+    },
+    "casserole": {
+      "version": "0.3.0",
+      "vcsRevision": "ac2210ce7a46ba209d241b1976e6736960f7df06",
+      "url": "https://github.com/ire4ever1190/casserole",
+      "downloadMethod": "git",
+      "dependencies": [
+        "libdump"
+      ],
+      "checksums": {
+        "sha1": "d5062d6ee2da7a1d122753446114b610e140cdcc"
+      }
+    },
     "threading": {
       "version": "0.2.1",
       "vcsRevision": "c5a39a039f24d48ba9503dcb9a0aee68a0fbb36d",
@@ -22,37 +44,28 @@
       }
     },
     "jaysonrpc": {
-      "version": "0.3.0",
-      "vcsRevision": "5becd9e445100df3b47e0a12e48cf36d69b252d2",
+      "version": "0.5.1",
+      "vcsRevision": "51e75032f2a209ce70461a93d98e9e506b0d47d3",
       "url": "https://github.com/ire4ever1190/jaysonrpc",
       "downloadMethod": "git",
       "dependencies": [
-        "threading"
+        "threading",
+        "casserole"
       ],
       "checksums": {
-        "sha1": "66951cd559847e15b6383a9bc3991be10564650d"
-      }
-    },
-    "libdump": {
-      "version": "0.1.2",
-      "vcsRevision": "c30f11e0bf22ed971d0b737aae0d62fa33843c64",
-      "url": "https://github.com/ire4ever1190/libdump",
-      "downloadMethod": "git",
-      "dependencies": [],
-      "checksums": {
-        "sha1": "fdc0b2a52283dbccad0300a06a9bd4def1a54d9b"
+        "sha1": "bc036b2a4f84d49ec322d38733d010cecc453dfa"
       }
     },
     "legit": {
-      "version": "0.1.1",
-      "vcsRevision": "562c5a3d6a551777dd03de661e2bfd4921ef42a6",
+      "version": "0.2.0",
+      "vcsRevision": "b9d50ce06de0fb59b18d0a31eec736be19a47f1f",
       "url": "https://github.com/ire4ever1190/legit",
       "downloadMethod": "git",
       "dependencies": [
         "libdump"
       ],
       "checksums": {
-        "sha1": "67370273c2a92be3e3bff3efb22c7aa3ad6f9e28"
+        "sha1": "db8bf33d9140482b3f3fcd4c4d30d098015f18a4"
       }
     },
     "results": {
@@ -66,13 +79,13 @@
       }
     },
     "unittest2": {
-      "version": "0.2.2",
-      "vcsRevision": "e96f3215030cbfa13abc2f5827069b6f8ba87e38",
+      "version": "0.2.5",
+      "vcsRevision": "26f2ef3ae0ec72a2a75bfe557e02e88f6a31c189",
       "url": "https://github.com/status-im/nim-unittest2",
       "downloadMethod": "git",
       "dependencies": [],
       "checksums": {
-        "sha1": "6ac7f7ea74df812a25be5d6d36a59d23789eb508"
+        "sha1": "02bb3751ba9ddc3c17bfd89f2e41cb6bfb8fc0c9"
       }
     },
     "minilru": {
@@ -88,14 +101,26 @@
         "sha1": "0be03a5da29fdd4409ea74a60fd0ccce882601b4"
       }
     },
-    "nort": {
-      "version": "0.2.1",
-      "vcsRevision": "26facac40cd600d332e22ca600fff32d862a9525",
-      "url": "https://github.com/ire4ever1190/nort",
+    "nim": {
+      "version": "2.2.8",
+      "vcsRevision": "",
+      "url": "https://github.com/nim-lang/Nim.git",
       "downloadMethod": "git",
       "dependencies": [],
       "checksums": {
-        "sha1": "d4583dde05ffcf8148b449760acefcb21fd2e475"
+        "sha1": "bb2aee4f676f652012fb4e8ce71ffbf03ed7e639"
+      }
+    },
+    "nort": {
+      "version": "0.5.0",
+      "vcsRevision": "668680a9670f26014df01cb0354e8047561a0c2b",
+      "url": "https://github.com/ire4ever1190/nort",
+      "downloadMethod": "git",
+      "dependencies": [
+        "casserole"
+      ],
+      "checksums": {
+        "sha1": "842ace4cc3defdcf5629dbb6ac99821b70f19394"
       }
     }
   },
