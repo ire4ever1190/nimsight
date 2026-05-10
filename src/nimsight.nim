@@ -139,7 +139,9 @@ lsp.on(symbolDefinition.meth) do (ctx: NimContext, textDocument: TextDocumentIde
       let document = files.parseFile(textDocument.uri).ast
       return (document, document[].findNode(position))
 
-  if nodeUnder.isNone(): return none(Location)
+  if nodeUnder.isNone():
+    debug fmt"Can't find node for {position}"
+    return none(Location)
 
   # Check if the node is an identifier
   let foundNode = document[nodeUnder.unsafeGet()]
@@ -148,7 +150,7 @@ lsp.on(symbolDefinition.meth) do (ctx: NimContext, textDocument: TextDocumentIde
   let targetName = foundNode.strVal.nimIdentNormalize()
 
   # Now search the outline, and return the first match
-  let outline = document.getPtr(NodeIdx(0)).outLineDocument()
+  let outline = document.getPtr(NodeIdx(0)).outlineDocument()
   for symbol in outline:
     if symbol.name.nimIdentNormalize() == targetName:
       return some Location(
