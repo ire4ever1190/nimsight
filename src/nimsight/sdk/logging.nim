@@ -31,4 +31,10 @@ method log*(logger: LSPLogger, level: Level, args: varargs[string, `$`]) {.gcsaf
     message: msg
   ))
 
+proc addHandlers*() =
+  ## Configures all the logging handlers that we want
+  addHandler(newLSPLogger())
+  when defined(debug):
+    addHandler(newFileLogger("/tmp/nimsight.log"))
+
 export logging

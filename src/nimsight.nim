@@ -61,11 +61,11 @@ proc checkFile(ctx: NimContext, uri: DocumentUri) {.gcsafe.} =
     diagnostics: diagnostics
   ))
 
-addHandler(newLSPLogger())
+addHandlers()
 
 var lsp = initServer("NimSight")
 
-var currentCheck = protectReadWrite(initTable[DocumentUri, JsonNode]())
+var currentCheck = protectReadWrite(initTable[DocumentUri, ID]())
 
 const sendDiagnostics = MethodDef[tuple[uri: DocumentURI], void](name: "extension/internal/sendDiagnostics")
 
@@ -73,7 +73,7 @@ lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
   let myId = ctx.id.get()
   try:
     # Cancel any previous request for this file, then register this as the latest.
-    currentCheck.with do (checks: var Table[DocumentUri, JsonNode]):
+    currentCheck.with do (checks: var Table[DocumentUri, ID]):
         if uri in checks:
           ctx.cancel(checks[uri])
         checks[uri] = myId
@@ -86,7 +86,7 @@ lsp.on(sendDiagnostics.name) do (ctx: NimContext, uri: DocumentUri) {.gcsafe.}:
     if e.code != RequestCancelled:
       raise e
   finally:
-    currentCheck.with do (checks: var Table[DocumentUri, JsonNode]):
+    currentCheck.with do (checks: var Table[DocumentUri, ID]):
       # Clear out so the table doesn't grow
       if uri in checks and checks[uri] == myId:
         checks.del(uri)
@@ -130,6 +130,7 @@ lsp.on(codeAction.meth) do (ctx: NimContext, textDocument: TextDocumentIdentifie
       range: range,
       context: context
     ))
+  debug fmt"Returning {result.len} code actions"
 
 lsp.on(symbolDefinition.meth) do (ctx: NimContext, textDocument: TextDocumentIdentifier, position: Position) -> Option[Location] {.gcsafe.}:
   # See if we can find a unique symbol in the outline
@@ -138,7 +139,9 @@ lsp.on(symbolDefinition.meth) do (ctx: NimContext, textDocument: TextDocumentIde
       let document = files.parseFile(textDocument.uri).ast
       return (document, document[].findNode(position))
 
-  if nodeUnder.isNone(): return none(Location)
+  if nodeUnder.isNone():
+    debug fmt"Can't find node for {position}"
+    return none(Location)
 
   # Check if the node is an identifier
   let foundNode = document[nodeUnder.unsafeGet()]
@@ -147,7 +150,7 @@ lsp.on(symbolDefinition.meth) do (ctx: NimContext, textDocument: TextDocumentIde
   let targetName = foundNode.strVal.nimIdentNormalize()
 
   # Now search the outline, and return the first match
-  let outline = document.getPtr(NodeIdx(0)).outLineDocument()
+  let outline = document.getPtr(NodeIdx(0)).outlineDocument()
   for symbol in outline:
     if symbol.name.nimIdentNormalize() == targetName:
       return some Location(
@@ -184,7 +187,7 @@ lsp.on(initialized.meth) do (ctx: NimContext):
         discard ctx.execProcess(ctx.data[].config.nimbleBinary, ["setup"], workingDir = $root)
 
 # Special handlers, should be handled earlier in case server is busy
-lsp.on("$/cancelRequest") do (id: JsonNode, ctx: NimContext):
+lsp.on("$/cancelRequest") do (id: ID, ctx: NimContext):
   info "Cancelling ", id
   ctx.cancel(id)
 

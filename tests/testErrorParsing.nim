@@ -166,3 +166,28 @@ suite "Type mismatch":
     check err.mismatches == @[
       Mismatch(idx: 1, expected: "set[T]"),
     ]
+
+  test "Many operator overloads":
+    let err = parseError("""
+/tmp/test.nim(1, 17) Error: type mismatch
+Expression: "hello" * "world"
+  [1] "hello": string
+  [2] "world": string
+
+Expected one of (first mismatch at [position]):
+[1] func `*`[T](x, y: set[T]): set[T]
+[1] proc `*`(x, y: float): float
+[1] proc `*`(x, y: float32): float32
+[1] proc `*`(x, y: int): int
+[1] proc `*`(x, y: int16): int16
+[1] proc `*`(x, y: int32): int32
+[1] proc `*`(x, y: int64): int64
+[1] proc `*`(x, y: int8): int8
+[1] proc `*`(x, y: uint): uint
+[1] proc `*`(x, y: uint16): uint16
+[1] proc `*`(x, y: uint32): uint32
+[1] proc `*`(x, y: uint64): uint64
+[1] proc `*`(x, y: uint8): uint8""")
+    check err.kind == TypeMismatch
+    check err.passed == @["string", "string"]
+    check err.mismatches.len == 13

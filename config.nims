@@ -14,6 +14,15 @@ when defined(ci):
   # Make some warnings actual errors
   warningAsError("UnusedImport")
 
+  # switch("passC", "-fsanitize=thread")
+  # switch("passL", "-fsanitize=thread")
+
+
+when defined(debug):
+  switch("debuginfo", "on")
+  switch("mangle", "cpp")
+  switch("linedir", "on")
+
 # begin Nimble config (version 2)
 --noNimblePath
 when withDir(thisDir(), system.fileExists("nimble.paths")):

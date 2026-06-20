@@ -1,7 +1,8 @@
 import nimsight/sdk/utils
 import nimsight/codeActions/utils
+import nimsight/sdk/hooks
 
-import std/[unittest, json, jsonutils]
+import std/[unittest, json, jsonutils, options]
 
 type Idk = Union[(string, int)]
 
@@ -131,3 +132,16 @@ suite "Token Differ":
           "import std/strutils",
           0, 0
       ).strip() == "import std/[strutils]"
+
+suite "Removing options":
+  type
+    Foo = object
+      name: Option[string]
+
+  test "Keep field if its something":
+    let resp = Foo(name: some("hello")).toJsonHandleOptions()
+    check resp["name"] == %"hello"
+
+  test "Removes field if its nothing":
+    let resp = Foo().toJsonHandleOptions()
+    check "name" notin resp

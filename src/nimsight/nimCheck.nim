@@ -92,7 +92,7 @@ proc collectIdentDefs(x: NodePtr): seq[DocumentSymbol] =
   return res
 
 
-proc outlineDocument*(x: NodePtr): seq[DocumentSymbol] =
+proc outlineDocument*(x: NodePtr): seq[DocumentSymbol] {.gcsafe.} =
   ## Creates an outline of symbols in the document.
   ## TODO: Check if the client supports heirarchy or not
   var symbols = newSeq[DocumentSymbol]()
@@ -110,14 +110,17 @@ proc outlineDocument*(x: NodePtr): seq[DocumentSymbol] =
         # Go through every field. We want to get identDefs so we don't recurse into the right
         # hand and get procTy nodes
         const careAbout = {nkIdentDefs, nkIdent, nkEnumFieldDef,  nkProcDef..nkIteratorDef}
-        typeDef[2].exploreAst(ofKind(careAbout)) do (node: NodePtr) -> bool:
-          if node.kind == nkIdentDefs:
-            for i in 0 ..< node.len - 2:
-              sym.children &= node[i].toDocumentSymbol()
-          else:
-            sym.children &= node.toDocumentSymbol()
+        {.gcsafe.}:
+          typeDef[2].exploreAst(ofKind(careAbout)) do (node: NodePtr) -> bool:
+            if node.kind == nkIdentDefs:
+              for i in 0 ..< node.len - 2:
+                sym.children &= node[i].toDocumentSymbol()
+            else:
+              sym.children &= node.toDocumentSymbol()
         symbols &= sym
     else: discard
+  {.gcsafe.}:
+    debug fmt"Found {symbols.len} symbols in document"
   return symbols
 
 func contains*(r: Range, p: Position): bool =

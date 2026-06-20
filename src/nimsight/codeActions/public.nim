@@ -7,12 +7,11 @@ import ../sdk/[types, params, server]
 import ../[customast, files]
 import ../utils/ast
 import ./utils
-import std/[strformat, options, tables, sugar, logging]
+import std/[strformat, options, tables, sugar]
 
 proc getObjectIdents(x: TreeView, idx: NodeIdx, idents: var seq[NodeIdx]) =
   ## Recursive function to find all the idents inside an object
   let node = x[idx]
-  debug node
   if node.kind == nkIdentDefs:
     for child in node.sons[0 ..< ^2]:
       if x[child].kind == nkIdent:
@@ -39,7 +38,6 @@ proc makeFieldsPublic*(
   # Find all the idents
   var idents = newSeq[NodeIdx]()
   ast[].getObjectIdents(parent.idx, idents)
-
   # And make edits to export them
   var edits = collect:
     for ident in idents:
@@ -50,7 +48,6 @@ proc makeFieldsPublic*(
   # Now push everything into a code action
   return @[CodeAction(
     title: fmt"Make '{n.name}' fields public",
-    diagnostics: none seq[Diagnostic],
     kind: some Refactor,
     edit: some WorkspaceEdit(
       changes: some toTable({

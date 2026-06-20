@@ -34,7 +34,7 @@ jobs:
         run: nimble build -y --useSystemNim -d:ci
 
       - name: Run Tests
-        run: nimble test
+        run: nimble test --useSystemNim
       - name: Output nvim LSP logs
         if: failure()
         run: cat ~/.local/state/nvim/lsp.log

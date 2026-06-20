@@ -1,4 +1,4 @@
-import std/[osproc, streams, os, unittest, strutils, strformat, strscans, paths, files]
+import std/[osproc, streams, os, unittest, strutils, strformat, paths, files]
 
 import pkg/nort
 

@@ -12,6 +12,7 @@ type
 proc protectReadWrite*[T](init: T): ReadWriteLocked[T] =
   ReadWriteLocked[T](lock: createRwLock(), data: init)
 
+
 template with*[T](l: var ReadWriteLocked[T], body: proc (data: var T)) =
   ## Write lock that is just a statement
   {.gcsafe.}:
