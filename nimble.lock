@@ -112,15 +112,15 @@
       }
     },
     "nort": {
-      "version": "0.6.0",
-      "vcsRevision": "3ea6f1014bd5688de1f2db8570c3ea03e74ebc70",
+      "version": "0.6.1",
+      "vcsRevision": "1185a06d158538424a10c9edb8311182aa355605",
       "url": "https://github.com/ire4ever1190/nort",
       "downloadMethod": "git",
       "dependencies": [
         "casserole"
       ],
       "checksums": {
-        "sha1": "5a7a361358553dd3401e245386412241f484c3af"
+        "sha1": "08100f4d18c72337f698d736cad788fba4061f59"
       }
     }
   },
