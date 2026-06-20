@@ -182,7 +182,7 @@ template makeWorkerThread(queue: untyped): untyped =
     ## Initialises a worker thread and then handles messages
     ## Implemented via a work stealing message queue
     # Initialise the worker.
-    addHandler(newLSPLogger())
+    addHandlers()
     let rpc = server[].executor
     # Start the worker loop
     info "Starting worker thread for " & astToStr(queue)

@@ -61,7 +61,7 @@ proc checkFile(ctx: NimContext, uri: DocumentUri) {.gcsafe.} =
     diagnostics: diagnostics
   ))
 
-addHandler(newLSPLogger())
+addHandlers()
 
 var lsp = initServer("NimSight")
 
