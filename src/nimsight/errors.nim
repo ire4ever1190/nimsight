@@ -1,6 +1,6 @@
 import "$nim"/compiler/[ast, renderer]
 
-import std/[strutils, sugar, strformat, options, paths, sequtils, times]
+import std/[strutils, sugar, strformat, options, paths, sequtils]
 
 import customast
 
@@ -115,7 +115,7 @@ func `$`*(e: ParsedError): string =
 # Basics we share
 let
   nl: Combinator[Void] = -e'\n'
-  ws: Combinator[Void] = - *(-e(Whitespace))
+  ws: Combinator[Void] = - longest(-e(Whitespace))
 
 let mismatchGrammar = block:
   let
@@ -125,13 +125,13 @@ let mismatchGrammar = block:
     mismatch = idx * ws * dot().until(nl)$decl
     passedType: Combinator[string] = ws * -idx * -dot().untilIncl(e": ") * dot().untilIncl(nl)
 
-  -dot().untilIncl(header) * (*passedType)$passedTypes * -dot().untilIncl(expectedHeader) * *(nl * mismatch)$mismatches
+  -dot().untilIncl(header) * (longest passedType)$passedTypes * -dot().untilIncl(expectedHeader) * longest(nl * mismatch)$mismatches
 
 let errGrammar = block:
   let
     stacktraceHeader = e "stack trace: (most recent call last)\n"
     position = e('(') * digit()$line * e", " * digit()$column * e')'
-    path = *(-(not (position | nl)) * dot())
+    path = longest(-(not (position | nl)) * dot())
     errorLevel = expect(ReportLevel)
     # Code name of the error/warning the compiler has internally e.g. [UndeclaredIdentifier].
     # This always appears at the end
@@ -248,12 +248,9 @@ proc parseError*(msg: string): ParsedError {.gcsafe.} =
   # Parse out information from the error message.
   # All 'generic/template instantiation' messages come before the actual message
   {.gcsafe.}:
-    echo fmt"DEBUG parseError called with msg len={msg.len}"
-    let start1 = cpuTime()
     let lines = collect:
       for match in (*errGrammar).match(msg).get():
         match
-    echo fmt"DEBUG errGrammar took {cpuTime() - start1:.4f}s, {lines.len} lines"
 
   # Usually happens when the compiler segfaults.
   # Best to raise an error instead of letting the whole server crash
@@ -284,7 +281,6 @@ proc parseError*(msg: string): ParsedError {.gcsafe.} =
     )
 
   if result.kind == Exception:
-    echo error
     result.exp = error.info.error.name.get()
 
   # Try and match the message against some patterns
@@ -317,12 +313,7 @@ proc parseError*(msg: string): ParsedError {.gcsafe.} =
         location: err.location
       )
   {.gcsafe.}:
-    echo "DEBUG mismatchGrammar.match input repr:"
-    echo repr result.msg
-    echo "---END---"
-    let start = cpuTime()
     let mismatch = mismatchGrammar.match(result.msg)
-    echo fmt"DEBUG mismatchGrammar.match took {cpuTime() - start:.4f}s"
     if mismatch.isSome:
       {.cast(uncheckedAssign).}:
         result.kind = TypeMismatch
