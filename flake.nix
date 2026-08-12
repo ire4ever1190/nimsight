@@ -5,7 +5,7 @@
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     nimbleUtils = {
-      url = "path:/home/jake/Documents/projects/mkNimbleApp";
+      url = "github:ire4ever1190/mkNimbleApp";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -28,7 +28,7 @@
       {
         packages.default = mkNimbleApp {
           src = ./.;
-          nimbleHash = "sha256-NpKea0nLDjRsrSxuRkgpK8Ipr9dgcxUUUj8K+DD8/Ws=";
+          nimbleHash = "sha256-yweW+lGhZF31zbuJFuACoP4ZuhuwxjGX64oQjcWuZ18=";
 
           checkInputs = [
             pkgs.neovim # Tests use neovim

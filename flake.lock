@@ -44,14 +44,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1786529847,
-        "narHash": "sha256-Vd9hWf96IHGevp28FbdDY2BahRt+f+oqn23UX9oL+ZI=",
-        "path": "/home/jake/Documents/projects/mkNimbleApp",
-        "type": "path"
+        "lastModified": 1786532585,
+        "narHash": "sha256-jgSMR0+MP0fZreZBuMtcak+oeES3wCzzAk1nnzGXByw=",
+        "owner": "ire4ever1190",
+        "repo": "mkNimbleApp",
+        "rev": "6e6247648b6123b5b6d0f3a11ea2a5ea83f79109",
+        "type": "github"
       },
       "original": {
-        "path": "/home/jake/Documents/projects/mkNimbleApp",
-        "type": "path"
+        "owner": "ire4ever1190",
+        "repo": "mkNimbleApp",
+        "type": "github"
       }
     },
     "nixpkgs": {
