@@ -4,8 +4,8 @@
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    nimbleUtils = {
-      url = "github:ire4ever1190/mkNimbleApp";
+    nim2nix = {
+      url = "github:daylinmorgan/nim2nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -15,20 +15,24 @@
       self,
       nixpkgs,
       flake-utils,
-      nimbleUtils,
+      nim2nix,
       ...
     }@inputs:
 
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        mkNimbleApp = nimbleUtils.packages.${system}.default.mkNimbleApp;
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ nim2nix.overlays.default ];
+        };
       in
       {
-        packages.default = mkNimbleApp {
+        packages.default = pkgs.buildNimblePackage {
+          pname = "nimsight";
+          version = "0.2.0";
           src = ./.;
-          nimbleHash = "sha256-vOb3jJ7bGK7MAWK9oh6nxISEnTBSFYoxMaBxgZsYUIU=";
+          nimbleDepsHash = "sha256-rvKzltujFyj8n+tvRFi8EE/ZStVokg67DEs2aa5GpYU=";
 
           checkInputs = [
             pkgs.neovim # Tests use neovim
