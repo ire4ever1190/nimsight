@@ -101,19 +101,6 @@
         "sha1": "d5062d6ee2da7a1d122753446114b610e140cdcc"
       }
     },
-    "nort": {
-      "version": "0.6.2",
-      "vcsRevision": "3d2799cebf856cc7c802f398d298599d69d534fc",
-      "url": "https://github.com/ire4ever1190/nort",
-      "downloadMethod": "git",
-      "dependencies": [
-        "nim",
-        "casserole"
-      ],
-      "checksums": {
-        "sha1": "d6eaf8b6b7ea4003bd16df9979324569e6924dee"
-      }
-    },
     "jaysonrpc": {
       "version": "0.5.1",
       "vcsRevision": "51e75032f2a209ce70461a93d98e9e506b0d47d3",
@@ -126,6 +113,19 @@
       ],
       "checksums": {
         "sha1": "bc036b2a4f84d49ec322d38733d010cecc453dfa"
+      }
+    },
+    "nort": {
+      "version": "0.6.2",
+      "vcsRevision": "3d2799cebf856cc7c802f398d298599d69d534fc",
+      "url": "https://github.com/ire4ever1190/nort",
+      "downloadMethod": "git",
+      "dependencies": [
+        "nim",
+        "casserole"
+      ],
+      "checksums": {
+        "sha1": "d6eaf8b6b7ea4003bd16df9979324569e6924dee"
       }
     }
   },
