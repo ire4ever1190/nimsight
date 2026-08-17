@@ -22,30 +22,16 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        mkNimbleApp = nimbleUtils.packages.${system}.default.mkNimbleApp;
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [
+            nimbleUtils.overlays.default
+            self.overlays.default
+          ];
+        };
       in
       {
-        packages.default = mkNimbleApp {
-          src = ./.;
-          nimbleHash = "sha256-8e/tEe2ccdcxRNeUtc4M7ei2PIwHpEqnRbEBi2wJ79s=";
-
-          checkInputs = [
-            pkgs.neovim # Tests use neovim
-          ];
-
-          preCheck = ''
-            # Neovim needs to write some state
-            export XDG_STATE_HOME=$(mktemp -d)
-          '';
-
-          meta = {
-            description = "Language server for Nim based on `nim check`";
-            homepage = "https://github.com/ire4ever1190/nimsight";
-            license = pkgs.lib.licenses.mit;
-            mainProgram = "nimsight";
-          };
-        };
+        packages.default = pkgs.nimsight;
         devShells = {
           default = pkgs.mkShell {
             packages = with pkgs; [
@@ -55,5 +41,7 @@
           };
         };
       }
-    );
+    ) // {
+      overlays.default = import ./overlay.nix;
+    };
 }
