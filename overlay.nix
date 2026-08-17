@@ -18,5 +18,5 @@ final: prev: {
       license = final.lib.licenses.mit;
       mainProgram = "nimsight";
     };
-  }
+  };
 }
