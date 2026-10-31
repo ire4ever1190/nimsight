@@ -2,15 +2,15 @@
   "version": 2,
   "packages": {
     "unittest2": {
-      "version": "0.2.5",
-      "vcsRevision": "26f2ef3ae0ec72a2a75bfe557e02e88f6a31c189",
-      "url": "https://github.com/status-im/nim-unittest2",
+      "version": "0.3.0",
+      "vcsRevision": "19701632b4f287b3012a5e435a9d829b0f66c605",
+      "url": "https://github.com/status-im/nim-unittest2.git",
       "downloadMethod": "git",
       "dependencies": [
         "nim"
       ],
       "checksums": {
-        "sha1": "02bb3751ba9ddc3c17bfd89f2e41cb6bfb8fc0c9"
+        "sha1": "a14b3648dc8bbbaefd0b16d9567b567cc264b042"
       }
     },
     "threading": {
@@ -89,8 +89,8 @@
       }
     },
     "casserole": {
-      "version": "0.3.0",
-      "vcsRevision": "ac2210ce7a46ba209d241b1976e6736960f7df06",
+      "version": "0.3.1",
+      "vcsRevision": "be04106b9bef136448852ae174f5e9820d6e5601",
       "url": "https://github.com/ire4ever1190/casserole",
       "downloadMethod": "git",
       "dependencies": [
@@ -98,7 +98,7 @@
         "libdump"
       ],
       "checksums": {
-        "sha1": "d5062d6ee2da7a1d122753446114b610e140cdcc"
+        "sha1": "5d458df93c28589744a89df3b9499c26f838ac43"
       }
     },
     "jaysonrpc": {
@@ -125,7 +125,7 @@
         "casserole"
       ],
       "checksums": {
-        "sha1": "d6eaf8b6b7ea4003bd16df9979324569e6924dee"
+        "sha1": "0463393d458b5ca80438b0b670093533cd5c15bb"
       }
     }
   },
