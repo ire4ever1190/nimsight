@@ -1,7 +1,7 @@
 final: prev: {
   nimsight = final.mkNimbleApp {
     src = ./.;
-    nimbleHash = "sha256-c/5uTvGi5//r7SqQ1W8okpoHETua55BT2rSk5DB4nP8=";
+    nimbleHash = "sha256-2u5S9yyiTm1rbjrAXxZbxzRZhPQ4Ko/kLZFOpZ8EOeM=";
 
     checkInputs = [
       final.neovim # Tests use neovim
